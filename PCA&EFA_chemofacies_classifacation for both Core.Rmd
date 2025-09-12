@@ -1,0 +1,3057 @@
+---
+title: "Appendix A3 –Core chemofacies classifacation for both Farley Core and Tracker Core; Utica Data Set"
+author: " "
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  html_document: default
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  always_allow_html: yes
+---
+
+
+
+```{r}
+# Load the required libraries
+library(plyr)                       # splitting, applying and combining data by Hadley Wickham 
+library(ggplot2)                  # for the custom biplot
+library(lattice)                 # for the matrix scatter plot
+library(corrplot)                # for the corrplot correlation plot
+library(readr)
+library(corrplot)
+library(corrplot)
+library(RGeostats)
+library(stringr)
+library(shiny)
+library(PerformanceAnalytics)
+library(GGally)
+library(DT)
+library(Cairo)
+library(psych)
+library(markdown)
+library(packHV)
+library(shinyjs)
+library(rmarkdown)
+library(knitr)
+library(gridExtra)
+library(formattable)
+library(data.table)
+library(farver)
+library(tidyverse)
+library(devtools)
+library(RColorBrewer)
+library(MASS)
+library(ggfortify)
+library(factoextra)
+library(nFactors)
+library(FactoMineR)
+library(gapminder)
+library(Matrix)
+library(magrittr) 
+library(kableExtra)
+library(ggforce)
+library(ggrepel)
+library(operator.tools)
+library(gstat)
+library(sp)
+library(dplyr)
+library(reshape2)
+
+
+
+ 
+
+
+```
+
+
+#Load the required libraries
+```{r}
+getOption("digits")
+options(digits=15)
+```
+
+#Portage
+#Loading data that has  formation tope and other variables(categorical) picked i.e raw
+
+```{r}
+portage_data <- read_csv(
+  "/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/PCA_FA_for_two_cores/Part_clean_Potage.csv"
+)
+
+# create a column named "Core"
+portage_data$Core <- "Potage"
+
+```
+
+# Loading the original Portage data set after EDA, Filling in zeroes and outlier analysis
+```{r}
+library(readr)
+Potage_noout <- read_csv(
+  "/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/PCA_FA_for_two_cores/Clean_Potage_datanoout.csv"
+)
+
+
+```
+
+#Loading the Raw xrf data from Kemeh, 2021 Washinton data set with formation tops picked
+```{r}
+library(readr)
+Washinton_data <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/PCA_FA_for_two_cores/Part_clean_Washington.csv")
+
+# create a column named "Core" 
+Washinton_data$Core <- "Washinton"
+
+```
+
+# Loading the original Washinton data set after EDA, Filling in zeroes and outlier analysis
+```{r}
+library(readr)
+Washinton_noout <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/PCA_FA_for_two_cores/Clean_Washington_datanoout.csv")
+
+
+```
+
+
+#Row binding the data frames
+
+
+```{r}
+
+# Row binding the data frames TO BE USED for combining later
+
+noout_mydata_A <- rbind(Washinton_noout, Potage_noout)
+
+# Row binding the data frames
+noout_mydata <- rbind(Washinton_noout, Potage_noout)
+
+#Exclude the '...1' column using the subset function
+noout_mydata <- subset(noout_mydata, select =  -c(...1))
+
+
+
+#View(noout_mydata)
+
+names(noout_mydata)
+
+
+```
+
+#Row binding the data frames
+#pull three columns from Raw_Washington_data with formation tops picked and add them to noout_mydata such that they come first, you can modify the code as follows:
+# Row binding the raw data frames 
+
+```{r}
+# Row binding the raw data frames
+bind <- rbind(Washinton_data, portage_data)
+names(bind)
+
+# Pull the desired columns from Raw_Washington_data
+depth_column <- bind$Depth_ft
+additional_columns <- bind[, c("Chemofacies", "Formation", "Core")]
+
+# Add the Depth_ft column to the beginning of noout_mydata
+noout_mydata_with_depth <- cbind(Depth_ft = depth_column, noout_mydata)
+
+# Add the additional columns to the end of noout_mydata
+data <- cbind(noout_mydata_with_depth, additional_columns)
+
+# Print the updated dataframe to verify
+head(data)
+
+
+
+```
+
+
+# Perform PCA (Compute PCA in R using prcomp())
+The functions prcomp() use the singular value decomposition (SVD).
+By default, the prcomp() function centers the variables to have mean zero.
+By using the option scale = TRUE, we scale the variables to have standard
+deviation one. The output from prcomp() contains a number of useful quantities.
+
+```{r}
+port.pca <- prcomp(noout_mydata, center = TRUE, scale = TRUE)
+
+names(port.pca)
+#port.pca
+```
+
+
+# The eigenvalues are the variances of the principal components and can be obtained by squaring the standard deviations (sdev).
+
+```{r}
+# Eigenvalues can be calculated from the 'sdev' component
+eigenvalues <- port.pca$sdev ^ 2
+
+# Print the eigenvalues
+print(eigenvalues)
+```
+
+
+# The rotation matrix provides the principal component loadings; each column of pr.out$rotation contains the corresponding principal component loading vector
+This function names it the rotation matrix, because when we matrix-multiply the
+X matrix by pr.out$rotation, it gives us the coordinates of the data in the rotated
+coordinate system. These coordinates are the principal component scores
+
+
+```{r}
+port.pca$rotation 
+
+```
+
+
+# Asking for a summary of a PCA (Principal Component Analysis) object
+
+```{r}
+summary(port.pca)
+```
+
+#We see that there are 20 distinct principal components. This is to be
+expected because there are in general min(n − 1, p) informative principal
+components in a data set with n observations and p variables.
+Using the prcomp() function, we do not need to explicitly multiply the
+data by the principal component loading vectors in order to obtain the
+principal component score vectors. Rather the 499 × 20 matrix x has as its
+columns the principal component score vectors. That is, the kth column is
+the kth principal component score vector.
+
+```{r}
+dim(port.pca$x)
+```
+
+
+
+
+#Principal component score
+```{r}
+port.pca$x 
+
+```
+
+
+#For Bublication, VarianceExplainedPercent
+
+```{r}
+library(ggplot2)
+
+# Assuming 'port.pca' is your PCA object
+# Calculate the proportion of variance explained by each principal component
+var_explained_percent <- (port.pca$sdev ^ 2 / sum(port.pca$sdev ^ 2)) * 100
+cum_var_explained_percent <- cumsum(var_explained_percent)
+
+# Create a data frame for plotting
+scree_data <- data.frame(
+  PrincipalComponent = seq_along(var_explained_percent),
+  VarianceExplainedPercent = var_explained_percent,
+  CumulativeVariance = cum_var_explained_percent
+)
+
+# Create the Scree plot with enhanced styling
+scree_plot <- ggplot(scree_data, aes(x = PrincipalComponent)) +
+  geom_bar(
+    aes(y = VarianceExplainedPercent),
+    stat = "identity",
+    fill = "steelblue",
+    alpha = 0.7
+  ) +
+  geom_line(aes(y = CumulativeVariance),
+            color = "#1B9E77",
+            size = 1.5) + # Line for cumulative variance
+  geom_point(aes(y = CumulativeVariance),
+             color = "#1B9E77",
+             size = 3) + # Points for cumulative variance
+  theme_minimal(base_size = 14) +  # Increase base font size for readability
+  labs(x = "Principal Component", y = "Percentage of Variance Explained", title = "Scree Plot") +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  ) +
+  scale_x_continuous(
+    breaks = 1:length(var_explained_percent),
+    labels = paste0("PC", 1:length(var_explained_percent))
+  ) +
+  
+  # Add labels for individual variance (above bars)
+  geom_text(
+    aes(
+      y = VarianceExplainedPercent,
+      label = sprintf("%.1f%%", VarianceExplainedPercent)
+    ),
+    vjust = -0.5,
+    size = 5,
+    fontface = "bold"
+  ) +
+  
+  # Add labels for cumulative variance (above points)
+  geom_text(
+    aes(y = CumulativeVariance, label = sprintf("%.1f%%", CumulativeVariance)),
+    vjust = -0.5,
+    color = "black",
+    size = 5,
+    fontface = "bold"
+  )
+
+
+ggsave(
+  "PCA_scree_plot_fixed.png",
+  plot = scree_plot,
+  width = 16,
+  height = 8,
+  dpi = 300
+)
+# Print the Scree plot
+print(scree_plot)
+
+```
+
+
+
+# Standardize variables
+
+ Transforming the data for each variable to have a mean of 0 and a standard deviation of 1. This process is commonly known as z-score normalization and is done using the formula:
+```{r}
+# Standardize variables
+FA_scaled <- scale(noout_mydata)
+summary(FA_scaled)
+```
+
+# Kaiser-Meyer-Olkin statistic and Bartlett sphericity test
+
+Performing the Kaiser-Meyer-Olkin statistic and Bartlett sphericity test" refers to two specific statistical tests used to assess the appropriateness and quality of the data for conducting Principal Component Analysis (PCA). These tests are typically performed before proceeding with PCA to ensure the data is suitable for such analysis. Let's break down what each test signifies:
+
+Kaiser-Meyer-Olkin (KMO) Statistic:
+
+The KMO statistic measures the sampling adequacy for each variable in the dataset as well as for the complete model. It evaluates whether the partial correlations among variables are small; if so, this implies that the variables share something in common, which PCA can then uncover.
+KMO values range between 0 and 1. A value closer to 1 indicates that the patterns of correlations are relatively compact, and PCA is likely to be meaningful. Generally, a KMO value greater than 0.6 is considered acceptable.
+Bartlett's Test of Sphericity:
+
+This test checks the hypothesis that the correlation matrix is an identity matrix, which would mean that variables are unrelated and PCA is unsuitable. In other words, it tests whether or not the observed variables inter-correlate at all, or if the correlation is an identity matrix.
+A significant test result (small p-value, typically less than 0.05) indicates that the correlation matrix is not an identity matrix and that the data is suitable for PCA.
+In the context of your statement, these tests are used to ensure the robustness of PCA. Robustness here refers to the reliability and validity of PCA results. If the data passes these tests (i.e., has a high KMO statistic and a significant Bartlett's test), it suggests that PCA is a suitable method for analysis, and the results obtained from PCA are more likely to be reliable and meaningful.
+
+
+Interpretation of Your KMO Test Results:
+Overall MSA (Measure of Sampling Adequacy) = 0.85 → Excellent
+A value above 0.80 is considered good, meaning your data is suitable for factor analysis.
+If MSA < 0.50, factor analysis would not be recommended.
+MSA for Individual Items:
+Most variables have MSA values above 0.75, which is strong.
+Ti_wt% (0.23) and P_wt% (0.57) are quite low.
+Ti_wt% (0.23) is very weak, meaning this variable might not contribute well to the factor structure.
+P_wt% (0.57) is borderline acceptable but might still cause weak loadings.
+You may consider removing Ti_wt% and rerunning the KMO test to see if the overall MSA improves.
+Chi-Square Test (Bartlett’s Test of Sphericity)
+Chi-square value = 16151.7, p-value = 0
+Since p-value = 0 (highly significant), it means your correlation matrix is not an identity matrix, which is good because it suggests that factor analysis can be applied.
+
+```{r}
+# Load the packages
+library(psych)
+library(GPArotation)
+
+
+# Kaiser-Meyer-Olkin (KMO) Test
+kmo_result <- KMO(FA_scaled)
+
+# Bartlett's Test of Sphericity
+bartlett_result <- cortest.bartlett(FA_scaled)
+
+# Print the results
+print(kmo_result)  # A KMO value closer to 1 suggests better suitability for PCA
+print(bartlett_result)  # For Bartlett's test, a significant p-value (< 0.05) indicates suitability for PCA
+```
+
+
+
+# EFA requires scree plot
+that the number of factors to be extracted is specified a priori. Often, it is not immediately obvious how many factors should be specified. Many authors have proposed rules over the years (e.g., Preacher et al, 2013). One simple approach (known as the Kaiser criterion) involves looking at eigenvalues of the data’s covariance matrix and counting the number above a threshold value (typically 1.0). 
+
+```{r}
+# Load ggplot2 for plotting
+library(ggplot2)
+
+# Step 1: Compute the covariance matrix of the standardized data
+# This is the same matrix used internally in PCA
+covar_matrix <- cov(FA_scaled)
+
+# Step 2: Calculate and sort eigenvalues in descending order
+# These eigenvalues represent the amount of variance explained by each principal component
+# Note: These are PCA eigenvalues, used only to inform the number of factors for EFA
+eigenvalues <- sort(eigen(covar_matrix)$values, decreasing = TRUE)
+
+# Step 3: Create a data frame for plotting the scree plot
+scree_data <- data.frame(Factor = 1:length(eigenvalues),
+                         Eigenvalue = eigenvalues)
+
+# Step 4: Generate a refined scree plot
+# This visualizes the eigenvalues to identify the 'elbow point' for factor retention
+ggplot(scree_data, aes(x = Factor, y = Eigenvalue)) +
+  geom_point(size = 2, color = "black") +                      # Mark each point clearly
+  geom_line(color = "black", linewidth = 0.8) +
+  geom_hline(
+    yintercept = 1.3,
+    linetype = "dashed",
+    color = "red",
+    linewidth = 0.8
+  ) +  # elbow
+  # Optional: Uncomment to show the Kaiser criterion line
+  # geom_hline(yintercept = 1, linetype = "dashed", color = "red", linewidth = 0.8) +
+  scale_x_continuous(breaks = scree_data$Factor) +             # Ensure x-axis ticks match factor numbers
+  scale_y_continuous(breaks = seq(0, max(eigenvalues), by = 1)) +  # Y-axis in whole number steps
+  theme_minimal() +                                            # Clean, minimalist theme
+  labs(title = "Scree Plot", x = "Factor Number", # 'Factor' is used here since this plot informs EFA
+       y = "Eigenvalue") +
+  theme(
+    panel.grid.major = element_line(color = "grey90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+# Step 5: Save the plot as a high-resolution PNG for use in your thesis or presentation
+ggsave(
+  "eigenvalues_scree_plot_fixed.png",
+  dpi = 300,
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+```
+
+
+
+# Perform EFA nd specify 3 factors
+
+
+```{r}
+
+# Load the psych package for factor analysis functions
+library(psych)
+
+# Step 1: Standardize the dataset
+# Scaling ensures that all variables contribute equally by converting them to z-scores
+FA_scaled <- scale(noout_mydata)
+
+# Step 2: Test the suitability of the dataset for EFA
+
+# 2a. Kaiser-Meyer-Olkin (KMO) Measure of Sampling Adequacy
+# Values > 0.6 suggest that the dataset is suitable for factor analysis
+KMO_result <- KMO(FA_scaled)
+print(KMO_result)
+
+# 2b. Bartlett’s Test of Sphericity
+# Tests whether the correlation matrix significantly differs from the identity matrix
+# A p-value < 0.05 indicates that correlations are sufficiently large for EFA
+cortest_result <- cortest.bartlett(cor(FA_scaled), n = nrow(FA_scaled))
+print(cortest_result)
+
+
+
+
+# # Step 3: Determine the number of factors to retain using parallel analysis
+# # This compares observed eigenvalues with those obtained from random data
+# # Helps avoid over-extraction based on scree plot alone
+# fa.parallel(FA_scaled, fa = "fa", n.iter = 100)
+
+# Define number of factors to extract (scree plot)
+num_factors <- 3
+
+# Step 4: Run Exploratory Factor Analysis (EFA)
+# Performs maximum likelihood extraction of 3 factors from the correlation matrix
+# Uses Varimax (orthogonal) rotation to simplify interpretation
+efa_result <- fa(
+  r = cor(FA_scaled),
+  nfactors = 3,
+  rotate = "varimax",
+  fm = "ml"
+)
+
+# Step 5: View the rotated factor loading matrix
+# Each value represents the strength of association between a variable and a factor
+print(efa_result$loadings)
+
+# Step 6: Clean and format the rotated loadings for display
+
+# 6a. Convert loadings to a data frame
+rotated_loadings <- as.data.frame(efa_result$loadings[1:nrow(efa_result$loadings), ])
+
+# 6b. Add variable names as a separate column
+rotated_loadings_df <- rotated_loadings %>%
+  tibble::rownames_to_column("VariableName")
+
+# 6c. Rename columns as Factor1, Factor2, Factor3
+colnames(rotated_loadings_df)[-1] <- c("Factor1", "Factor2", "Factor3")
+
+# 6d. Round all factor loadings to 3 decimal places for readability
+rotated_loadings_df <- rotated_loadings_df %>%
+  mutate(across(starts_with("Factor"), ~ round(.x, 3)))
+
+# 6e. Print the cleaned factor loading table
+cat("Rotated Loadings:\n")
+print(rotated_loadings_df)
+
+# Step 7: Calculate factor scores for each observation
+# These scores represent the position of each sample along the latent factors
+efa_scores <- factor.scores(FA_scaled, efa_result)$scores
+
+factor_scores <- as.data.frame(efa_scores)
+
+# Rename factor scores
+colnames(factor_scores) <- paste0("Factor", seq_len(num_factors))
+
+# Step 8: Combine factor scores with the original (unscaled) data
+# This allows for downstream interpretation and visualization
+FA_combined <- cbind(noout_mydata, factor_scores)
+
+
+
+```
+
+
+
+
+
+
+
+# Function to create bar plots for rotated loadings
+```{r}
+# Function to create bar plots for rotated loadings
+create_plot <- function(rotated_loadings_df, indices, filename) {
+  # Set up the PNG device with larger dimensions and higher resolution
+  png(
+    filename,
+    width = 14,
+    height = 8,
+    units = 'in',
+    res = 400
+  )
+  
+  # Adjust the layout and margins to fit the plots and prevent the labels from being cut off
+  par(
+    mfrow = c(1, length(indices)),
+    mar = c(12, 6, 4, 2),
+    cex.axis = 1.7,
+    cex.lab = 1.7,
+    cex.main = 2.0
+  )
+  
+  for (i in indices) {
+    # Extract the factor name (e.g., "Factor1", "Factor2") based on index
+    factor_name <- paste0("Factor", i)
+    
+    # Extract loadings for the current factor
+    loadings_factor <- rotated_loadings_df[[factor_name]]
+    
+    # Define colors based on the sign of the loadings
+    colors <- ifelse(loadings_factor < 0, "red", "blue")
+    
+    # Plot the loadings with appropriate colors
+    barplot(
+      loadings_factor,
+      names.arg = rotated_loadings_df$VariableName,
+      # Add variable names as labels
+      main = factor_name,
+      ylab = "Loadings",
+      col = colors,
+      las = 2,
+      # Make axis labels perpendicular
+      cex.names = 1.3,
+      # Adjust label size for readability
+      space = 0.7
+    )  # Increase space between bars to allow better label fitting
+    
+    # Add dotted lines to indicate significant loadings
+    abline(h = c(-0.5, 0.5),
+           col = "darkgreen",
+           lty = 2)
+  }
+  
+  # Turn off the device
+  dev.off()
+}
+
+# Create plots for factors using the rotated loadings data frame
+create_plot(rotated_loadings_df,
+            indices = 1:2,
+            filename = "PCA_factors_PCA_1_2.png")
+
+# Create plots for factors using the rotated loadings data frame
+create_plot(rotated_loadings_df,
+            indices = 2:3,
+            filename = "PCA_factors_PCA_2_3.png")
+
+```
+
+
+# To determine the optimum number of clusters for Kmeans
+To use the PCA-reduced dataset (port.pca$x[, 1:5]) in your elbow method code instead of the original standardized data, you just need to replace data_pca <- noout_mydata with the PCA-transformed data.
+```{r}
+# Load necessary libraries
+library(cluster)
+library(factoextra)
+library(ggplot2)
+
+# Use the first 5 principal components from PCA
+data_pca <- port.pca$x[, 1:5]  # This is the PCA-reduced data
+
+# Create the Elbow plot and store it as an object
+elbow_plot <- fviz_nbclust(data_pca, kmeans, method = "wss") +
+  geom_vline(
+    xintercept = 5,
+    linetype = "dashed",
+    color = "red",
+    size = 1
+  ) +
+  labs(title = "Elbow Method for Optimal Number of Clusters", x = "Number of Clusters (k)", y = "Within-Cluster Sum of Squares (WSS)") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 11),
+    
+    # Add black axis lines
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.4)
+  )
+
+# Print the plot in the R console
+print(elbow_plot)
+
+# Save the plot as high-res PNG
+ggsave(
+  "elbow_plot_kmeans.png",
+  plot = elbow_plot,
+  width = 7,
+  height = 5,
+  dpi = 300
+)
+
+# (Optional) Save as PDF
+# ggsave("elbow_plot_kmeans.pdf", plot = elbow_plot, width = 7, height = 5)
+
+```
+
+
+# Clustering
+In other words, if we have a multi-dimensional data set, a solution is to perform Principal Component Analysis (PCA) and to plot data points according to the first two principal components coordinates.
+
+Dim1 and Dim2 corresponds to principal components 1 and 2, respectively.
+
+No, k-means does not compute PCA. The K-means clustering identifies only the grouping of the samples.
+
+Visualization is performed using the function fviz_cluster().
+
+1/ If you have only two variables (x, y) in your dataset, then a standard scatter plot of x vs y is drawn by fviz_cluster() and points will be colored by groups.
+
+2/ If you have more than two variables in the data set, then the function fviz_cluster() performs PCA to reduce the dimensionality of the data, and uses PC1 (Dim1) and PC2 (Dim2) to visualize the data.
+
+The function fviz_cluster() [factoextra package] can be used to easily visualize k-means clusters. It takes k-means results and the original data as arguments. In the resulting plot, observations are represented by points, using principal components if the number of variables is greater than 2.
+
+
+
+```{r}
+# Step 1: Standardize the data
+# Standardize the data so that variables with larger scales do not dominate the clustering
+noout_mydata_scaled <- scale(noout_mydata)
+
+# Step 2: Perform K-means clustering
+# Set the seed for reproducibility
+# port.pca$x contains the scores of the principal components, you can select the first five components like this
+
+set.seed(123)
+kmeans_result <- kmeans(port.pca$x[, 1:5], centers = 5)
+
+# Step 3: Visualize the results using PCA
+
+pca_data <- data.frame(port.pca$x[, 1:2])  # Extract the first two principal components
+pca_data$chemofacies <- factor(kmeans_result$cluster)  # Add the cluster assignment with new column name 'chemofacies'
+
+# Define colors for each cluster
+facies_colors <- c(
+  "1" = "#666666",
+  # Color for chemofacies 1
+  "2" = "#CC9933",
+  # Color for chemofacies 2
+  "3" = "#1B9E77",
+  # Color for chemofacies 3
+  "4" = "#7570B3",
+  # Color for chemofacies 4
+  "5" = "#66A61E"   # Color for chemofacies 5
+  
+)
+
+
+# Define label mapping for display
+chemofacies_labels <- c(
+  "1" = "Detrital Dolomitic",
+  "2" = "Siliceous Argillaceous",
+  "3" = "Mixed Silica-Argillaceous",
+  "4" = "Carbonate-Dominated",
+  "5" = "Molybdenum-Rich Anoxic"
+)
+
+# Visualize the clusters with ggplot2
+library(ggplot2)
+ggplot(pca_data, aes(x = PC1, y = PC2, color = chemofacies)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = facies_colors,
+                     labels = chemofacies_labels,
+                     name = "Chemofacies") +
+  theme_minimal() +
+  labs(title = "K-means Clustering Visualization on PCA-reduced Data", x = "Principal Component 1 (PC1)", y = "Principal Component 2 (PC2)")
+
+
+# Create a new DataFrame with cluster assignments
+
+
+# Create a new DataFrame with chemofacies assignments for further visualization
+new_data_with_clusters <- cbind(data, chemofacies = kmeans_result$cluster)
+new_data_with_clusters
+
+
+
+# Create a new DataFrame with cluster assignments for vitalization later
+new_data_with_clusters_Vituai <- cbind(data, chemofacies = kmeans_result$cluster)
+new_data_with_clusters_Vituai
+
+```
+
+
+
+
+#create a column named "Core" within the new_data_with_clusters data frame,
+from noout_mydata_A which contains a column named "Core" from which data is being sourced.
+```{r}
+
+
+# new_data_with_clusters <- data.frame(Al_wt% = c(0.01, 0.05, 0.1))
+
+# Convert Al_wt% to Al_ppm
+new_data_with_clusters <- new_data_with_clusters %>%
+  mutate(Al_ppm = `Al_wt%` * 10000)
+
+# Assuming new_data_with_clusters is already loaded and contains the required columns
+new_data_with_clusters <- new_data_with_clusters %>%
+  mutate(
+    `K/Al` = signif(`K_wt%` / `Al_wt%`, digits = 2),
+    `Mg/Al` = signif(`Mg_wt%` / `Al_wt%`, digits = 2),
+    `Rb/Al` = signif(Rb_ppm / Al_ppm, digits = 2),
+    `Si/Al` = signif(`Si_wt%` / `Al_wt%`, digits = 2),
+    `Ti/Al` = signif(`Ti_wt%` / `Al_wt%`, digits = 2),
+    `Zr/Al` = signif(Zr_ppm / Al_ppm, digits = 2),
+    `Si/Ti` = signif(`Si_wt%` / `Ti_wt%`, digits = 2),
+    `Cu/Al` = signif(Cu_ppm / Al_ppm, digits = 2),
+    `Fe/Al` = signif(`Fe_wt%` / `Al_wt%`, digits = 2),
+    `Ni/Al` = signif(Ni_ppm / Al_ppm, digits = 2),
+    `Mo/Al` = signif(Mo_ppm / Al_ppm, digits = 2),
+    `S/Al` = signif(`S_wt%` / `Al_wt%`, digits = 2),
+    `U/Al` = signif(U_ppm / Al_ppm, digits = 2),
+    `Zn/Al` = signif(Zn_ppm / Al_ppm, digits = 2),
+    `Si/Ca` = signif(`Si_wt%` / `Ca_wt%`, digits = 2),
+    `SGR` = (`K_wt%` * 16) + (Th_ppm * 4) + (U_ppm * 8),
+    `Sr/Ca` = signif(`Sr_wt%` / `Ca_wt%`, digits = 2),
+    `Zr/Al` = signif(Zr_ppm / Al_ppm, digits = 2),
+    # Removed extra space and corrected quote type
+    `V/Al` = signif(V_ppm / Al_ppm, digits = 2)
+  )
+
+# View the updated DataFrame
+print(new_data_with_clusters)
+
+
+
+
+#View(new_data_with_clusters)
+names(new_data_with_clusters)
+
+```
+
+
+#Subseting the dataframe with rows where core is Washinton and Potage, to separate the two cores 
+```{r}
+
+# Create the first dataframe with rows where formation is "Point Pleasant FM"
+Washinton <- subset(new_data_with_clusters, Core == "Washinton")
+#View(Washinton)
+# Create the second dataframe with rows where formation is "Point"
+Potage <- subset(new_data_with_clusters, Core == "Potage")
+#view(Potage)
+
+```
+
+
+#This resampling routine was applied solely for visualization and interpolation purposes. It standardizes depth intervals to improve plot clarity and continuity without altering the original stratigraphic resolution or measured data values, steps for Potage.
+```{r}
+library(dplyr)
+library(tidyr)
+library(readr)
+
+# Assuming noout_mydata is your DataFrame
+df <- Potage
+
+# Function to detect unordered segments
+detect_unordered_segments <- function(depths) {
+  diffs <- diff(depths)
+  # Identifying indices where the depth decreases or does not increase by the regular interval
+  problem_indices <- which(diffs <= 0)
+  return(problem_indices)
+}
+
+# Function to resample a segment
+resample_segment <- function(df_segment) {
+  min_depth <- floor(min(df_segment$Depth_ft))
+  max_depth <- ceiling(max(df_segment$Depth_ft))
+  
+  depths_0 <- seq(from = min_depth, to = max_depth, by = 1)
+  depths_6 <- seq(from = min_depth + 0.6,
+                  to = max_depth,
+                  by = 1)
+  new_depths <- sort(c(depths_0, depths_6))
+  
+  new_depths_df <- data.frame(Depth_ft = new_depths)
+  df_resampled <- full_join(new_depths_df, df_segment, by = "Depth_ft") %>%
+    arrange(Depth_ft) %>%
+    fill(names(df_segment), .direction = "downup")
+  
+  return(df_resampled)
+}
+
+# Identify unordered segments
+problem_indices <- detect_unordered_segments(df$Depth_ft)
+
+# Initialize an empty DataFrame to store the corrected segments
+df_corrected <- df[0, ]
+
+# Process each unordered segment
+for (i in seq_along(problem_indices)) {
+  if (i == 1) {
+    # Handle the first segment
+    df_segment <- df[1:problem_indices[i], ]
+  } else {
+    # Handle subsequent segments
+    df_segment <- df[(problem_indices[i - 1] + 1):problem_indices[i], ]
+  }
+  
+  # Resample the segment
+  df_resampled_segment <- resample_segment(df_segment)
+  
+  # Append the resampled segment to the corrected DataFrame
+  df_corrected <- rbind(df_corrected, df_resampled_segment)
+}
+
+# Handle the last segment if needed
+if (length(problem_indices) > 0 &&
+    tail(problem_indices, n = 1) < nrow(df)) {
+  df_last_segment <- df[(tail(problem_indices, n = 1) + 1):nrow(df), ]
+  df_resampled_last_segment <- resample_segment(df_last_segment)
+  df_corrected <- rbind(df_corrected, df_resampled_last_segment)
+} else {
+  df_corrected <- rbind(df_corrected, df)
+}
+
+# Print the corrected DataFrame
+print(df_corrected)
+
+```
+
+#using the resampled df 
+```{r}
+#using the resampled df
+new_data_with_clusters_Potage <- df_corrected
+new_data_with_clusters_Potage
+
+```
+
+#well_log_plot_Potage
+
+```{r}
+# Assuming you have the following libraries loaded
+library(ggplot2)
+library(reshape2)
+
+# Your new_data_with_clusters dataframe should have the Al_wt% and Si_wt% variables
+# and the Depth_ft variable
+
+# First, melt the data frame so that it is long format for ggplot
+melted_data <- melt(
+  new_data_with_clusters_Potage,
+  id.vars = 'Depth_ft',
+  measure.vars = c("Ca_wt%", "Si_wt%")
+)
+
+#  "Al_wt%", "Si_wt%", "Mg_wt%",
+
+# Now, you can split the 'variable' column to separate the variables and well identifiers
+# Note: Assuming your dataframe does not have separate wells and the measurements
+# are in columns Al_wt% and Si_wt%
+melted_data$Var <- gsub("_.*", "", melted_data$variable)
+melted_data$Well <- gsub(".*_", "", melted_data$variable)
+
+# Convert Well to a factor if it's not already
+melted_data$Well <- as.factor(melted_data$Well)
+
+# Now plot with ggplot
+sp <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  theme_bw() +
+  geom_path(aes(linetype = Var)) +
+  labs(title = '') +
+  scale_y_reverse() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  facet_grid(. ~ Var, scales = 'free_x') + # free scales allow each variable to have its own x scale
+  theme(legend.position = "none") # This will remove the legend # free scales allow each variable to have its own x scale
+
+# If you want to see the plot in your R environment
+print(sp)
+
+# Or, if you want to save the plot to a file
+ggsave(
+  "well_log_plot_Potage.png",
+  sp,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+```
+
+
+#combined_chemical_cluster_plot_Potage with facies
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  facet_wrap( ~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill = NA),
+    # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Potage,
+                       aes(
+                         x = factor(1),
+                         y = Depth_ft,
+                         fill = as.factor(chemofacies)
+                       )) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors,
+                    labels = chemofacies_labels,
+                    name = "chemofacies") +
+  scale_y_reverse() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA) # Add border to cluster panel
+  ) +
+  guides(fill = guide_legend(title = "chemofacies")) # Ensure cluster legend is titled
+
+
+
+# Combine the plots using patchwork
+combined_plot <- sp + cluster_plot + #chemical_plot
+  plot_layout(widths = c(0.2, 0.2)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave(
+  "combined_chemical_cluster_plot1_Potage.png",
+  combined_plot,
+  width = 5,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+#Preparing plot fot porosity, GR and toc 
+```{r}
+
+# library(readr)
+# library(ggplot2)
+# 
+# # Load the data
+# df_Poro <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/bothcore/2nd_both_core/oil and core_potage.csv")
+# 
+# # View the names of the dataframe to ensure proper column referencing
+# print(names(df_Poro))
+# 
+# # Define the plot for Total Porosity without showing depth axis labels
+# toc_plot <- ggplot(df_Poro, aes(x = `Total Porosity (per off BV)\n`, y = Depth_ft)) +
+#   geom_path(color = "darkblue") +  # Using geom_path for ordered pairs
+#   scale_y_reverse() +
+#   labs(title = "Total Porosity", x = "% of BV", y = "") +  # Removed "Depth_ft" from y-axis label
+#   theme_minimal() +
+#   theme(
+#     plot.title = element_text(hjust = 0.5),
+#     axis.text.x = element_text(angle = 45, hjust = 1),
+#     axis.text.y = element_blank(),  # Hides the y-axis labels
+#     axis.ticks.y = element_blank()  # Optionally hides the y-axis ticks
+#   )
+# 
+# # Print the plot
+# print(toc_plot)
+# 
+# 
+# 
+# 
+# TOC <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/bothcore/2nd_both_core/Tracker_Kline Por 3_811008_REVISED TOC-RE.csv")
+# View(TOC)
+# names(TOC)
+
+# TOC_plot <- ggplot(TOC, aes(x = `TOC Wt. %`, y = Depth_ft)) +  # Ensure the column names are correct and used without quotes
+#   geom_path(color = "red") +  # Using geom_path to connect points based on their order in the dataset
+#   scale_y_reverse() +
+#   labs(title = "TOC", x = "TOC Wt. %", y = "") +
+#   theme_minimal() + 
+#   theme(
+#     plot.title = element_text(hjust = 0.5),
+#     axis.text.x = element_text(angle = 45, hjust = 1),
+#     axis.text.y = element_blank(),  # Hides the y-axis labels
+#     axis.ticks.y = element_blank()  # Optionally hides the y-axis ticks
+#   )
+# 
+# 
+# # Re-run the plot command
+# print(TOC_plot)
+# 
+# 
+
+
+
+# Read the CSV file
+GR <- read_csv(
+  "/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/bothcore/2nd_both_core/TRACKER.csv"
+)
+
+
+# Filter the data for the specified depth range
+GR_filtered <- GR %>% filter(DEPT >= 6141.00 & DEPT <= 6474)
+
+# If needed, melt the data frame to long format
+# Here, we assume GR and DEPT are in the correct format and do not need melting
+# If they need melting, adjust accordingly
+
+# Create the plot using the filtered data
+GR_plot <- ggplot(GR_filtered, aes(x = GR, y = DEPT)) +
+  geom_path(color = "black") +  # Using geom_path to connect points based on their order in the dataset
+  scale_y_reverse() +
+  labs(title = "", x = "", y = "") +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_blank(),
+    # Hides the y-axis labels
+    axis.ticks.y = element_blank(),
+    # Optionally hides the y-axis ticks
+    strip.background = element_blank(),
+    # Remove strip background
+    strip.text.x = element_text(size = 10)  # Set strip text size
+  ) +
+  facet_grid(. ~ "GR", scales = 'free_x')  # Add faceting to mimic the style
+
+# Print the plot
+print(GR_plot)
+
+
+
+
+```
+
+
+#combined_chemical_cluster_plot_Potage with facies
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  facet_wrap( ~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill = NA),
+    # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Potage,
+                       aes(
+                         x = factor(1),
+                         y = Depth_ft,
+                         fill = as.factor(chemofacies)
+                       )) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors,
+                    labels = chemofacies_labels,
+                    name = "chemofacies") +
+  scale_y_reverse() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA) # Add border to cluster panel
+  ) +
+  guides(fill = guide_legend(title = "chemofacies")) # Ensure cluster legend is titled
+
+# Define the plot for lithotype data
+lithotype_data <- data.frame(
+  #Depth_ft = c(6156, 6213.6, 6287, 6324, 6345, 6369.6, 6408, 6431),
+  Depth_ft = c(
+    6156.25,
+    6213.67,
+    6286.92,
+    6323.89,
+    6344.87,
+    6369.65,
+    6407.76,
+    6431.37
+  ),
+  Lithotype = c(
+    "Dolomitic, argillaceous mudstone",
+    "Argillaceous mudstone",
+    "Argillaceous mudstone",
+    "Argillaceous mudstone",
+    "Calcareous/argillaceous mudstone",
+    "Calcareous/argillaceous mudstone",
+    "Calcareous/argillaceous mudstone",
+    "Calcareous/argillaceous mudstone"
+  )
+)
+
+lithotype_plot <- ggplot(lithotype_data, aes(x = factor(1), y = Depth_ft, fill = Lithotype)) +
+  geom_tile(width = 1, height = 1) +
+  scale_y_reverse() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Dolomitic, argillaceous mudstone" = "blue",
+      "Argillaceous mudstone" = "pink",
+      "Calcareous/argillaceous mudstone" = "green"
+    ),
+    name = "Lithotype"
+  ) +
+  labs(title = "Lithotype") +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.1),
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  guides(fill = guide_legend(title = "Lithotypes"))
+
+
+
+#, 0.2, 0.2, 0.2
+
+#toc_plot + print(TOC_plot) + GR_plot
+# Combine the plots using patchwork  #lithotype_plot
+#toc_plot + print(TOC_plot)
+combined_plot <-   sp + GR_plot + cluster_plot +
+  plot_layout(widths = c(0.2, 0.1, 0.1)) # Set equal widths for the plots
+
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave(
+  "combined_plot_Potage.png",
+  combined_plot,
+  width = 8,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+
+# To plot elements and one factor scores
+```{r}
+
+
+# First, convert factor_scores_varimax to a data frame if it's not already
+#factor_scores_df2 <- as.data.frame(factor_scores_varimax)
+
+factor_scores_df2 <- factor_scores
+
+# Then, add the Depth_ft column from noout_mydata to factor_scores_df
+factor_scores_df2$Depth_ft <- data$Depth_ft
+
+# Now factor_scores_df contains the factor scores and the Depth_ft column
+print(factor_scores_df2)
+
+
+# Add Depth_ft and Core columns from new_data_with_clusters to factor_scores_df
+factor_scores_df2$Depth_ft <- new_data_with_clusters$Depth_ft
+factor_scores_df2$Core <- new_data_with_clusters$Core
+
+# If you want to save this updated dataframe under a new name
+to_plot_factor_scores_df <- factor_scores_df2
+
+
+
+# Create the first dataframe with rows where formation is "Point Pleasant FM"
+FA_Potage <- subset(to_plot_factor_scores_df, Core == "Potage")
+#View(FA_Potage)
+
+names(FA_Potage)
+#To create a new dataframe FA_df2 from another dataframe FA_Washington while excluding the Core column,
+unique_FA_df2 <- dplyr::select(FA_Potage, -Core)
+
+
+
+
+# Assuming your DataFrame has been previously defined, if not, load or define it here
+
+#This resampling routine was applied solely for visualization and interpolation purposes.
+#It standardizes depth intervals to improve plot clarity and continuity without altering the original stratigraphic resolution or measured data values.
+# Function to detect unordered segments
+detect_unique_unordered_segments <- function(depths) {
+  diffs <- diff(depths)
+  problem_indices <- which(diffs <= 0)
+  return(problem_indices)
+}
+
+# Function to resample a segment
+resample_unique_segment <- function(df_segment) {
+  min_depth <- floor(min(df_segment$Depth_ft))
+  max_depth <- ceiling(max(df_segment$Depth_ft))
+  
+  depths_0 <- seq(from = min_depth, to = max_depth, by = 1)
+  depths_6 <- seq(from = min_depth + 0.6,
+                  to = max_depth,
+                  by = 1)
+  new_depths <- sort(c(depths_0, depths_6))
+  
+  new_depths_df <- data.frame(Depth_ft = new_depths)
+  df_resampled <- full_join(new_depths_df, df_segment, by = "Depth_ft") %>%
+    arrange(Depth_ft) %>%
+    fill(names(df_segment), .direction = "downup")
+  
+  return(df_resampled)
+}
+
+# Identify unordered segments
+unique_problem_indices <- detect_unique_unordered_segments(unique_FA_df2$Depth_ft)
+
+# Initialize an empty DataFrame to store the corrected segments
+unique_df_corrected2 <- unique_FA_df2[0, ]
+
+# Process each unordered segment
+for (i in seq_along(unique_problem_indices)) {
+  if (i == 1) {
+    df_segment <- unique_FA_df2[1:unique_problem_indices[i], ]
+  } else {
+    df_segment <- unique_FA_df2[(unique_problem_indices[i - 1] + 1):unique_problem_indices[i], ]
+  }
+  
+  df_resampled_segment <- resample_unique_segment(df_segment)
+  unique_df_corrected2 <- rbind(unique_df_corrected2, df_resampled_segment)
+}
+
+# Handle the last segment if needed
+if (length(unique_problem_indices) > 0 &&
+    tail(unique_problem_indices, n = 1) < nrow(unique_FA_df2)) {
+  df_last_segment <- unique_FA_df2[(tail(unique_problem_indices, n = 1) + 1):nrow(unique_FA_df2), ]
+  df_resampled_last_segment <- resample_unique_segment(df_last_segment)
+  unique_df_corrected2 <- rbind(unique_df_corrected2, df_resampled_last_segment)
+} else {
+  unique_df_corrected2 <- rbind(unique_df_corrected2, unique_FA_df2)
+}
+
+# Print the corrected DataFrame
+print(unique_df_corrected2)
+
+# here i am creation a df to use for chaper3 to avoid mix up
+potage_unique_df_corrected2 <- unique_df_corrected2
+
+new_data_with_clusters_Potage$Factor1 <- unique_df_corrected2[, 2]
+# Your new_data_with_clusters dataframe should have the Al_wt% and Si_wt% variables
+# and the Depth_ft variable
+
+# First, melt the data frame so that it is long format for ggplot
+melted_data <- melt(
+  new_data_with_clusters_Potage,
+  id.vars = 'Depth_ft',
+  measure.vars = c('Factor1', 'Al_wt%', 'Si_wt%', 'K_wt%', 'Zr_ppm')
+)
+
+#and this too if you dont want to see the  factor
+#Reorder the levels of the `variable` factor to ensure 'Factor1_Score_1' comes last
+# This is crucial after melting but before plotting
+melted_data$variable <- factor(melted_data$variable,
+                               levels = c('Factor1', 'Al_wt%', 'Si_wt%', 'K_wt%', 'Zr_ppm'))
+
+# Now, you can split the 'variable' column to separate the variables and well identifiers
+# Note: Assuming your dataframe does not have separate wells and the measurements
+# are in columns Al_wt% and Si_wt%
+melted_data$Var <- gsub("_.*", "", melted_data$variable)
+melted_data$Well <- gsub(".*_", "", melted_data$variable)
+
+# Convert Well to a factor if it's not already
+melted_data$Well <- as.factor(melted_data$Well)
+
+# Now plot with ggplot
+sp_fa <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  theme_bw() +
+  geom_path(aes(linetype = Var)) +
+  labs(title = '') +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  scale_y_reverse() +
+  facet_grid(. ~ variable, scales = 'free_x') + # free scales allow each variable to have its own x scale
+  theme(legend.position = "none") # This will remove the legend # free scales allow each variable to have its own x scale
+
+# If you want to see the plot in your R environment
+print(sp_fa)
+
+# Or, if you want to save the plot to a file
+ggsave(
+  "FA_potage_log_plot.png",
+  sp_fa,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+
+
+```
+
+#Combine df
+```{r}
+Potage3rd <- cbind(df_corrected, potage_unique_df_corrected2)
+Potage3rd
+
+write.csv(Potage3rd, "Potage3rd.csv", row.names = FALSE)
+
+```
+
+
+#To add a cluster plot to your final visualization, positioning it to the right of other plots.
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  facet_wrap( ~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill = NA),
+    # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Potage,
+                       aes(
+                         x = factor(2),
+                         y = Depth_ft,
+                         fill = as.factor(chemofacies)
+                       )) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors,
+                    labels = chemofacies_labels,
+                    name = "chemofacies") +
+  scale_y_reverse() +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA) # Add border to cluster panel
+  ) +
+  guides(fill = guide_legend(title = "chemofacies")) # Ensure cluster legend is titled
+
+# Combine the plots using patchwork
+combined_plot <- sp_fa + cluster_plot +  #chemical_plot
+  plot_layout(widths = c(0.6, 0.2)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave(
+  "combine_potage_plot.png",
+  plot = combined_plot,
+  width = 9,
+  height = 10,
+  dpi = 300
+)
+```
+
+#to plot Factor1, Factor2, Factor3, for potage from your factor_scores_varimax against depth in new_data_with_clusters, and assuming these factors are the first 3 columns in your factor_scores_varimax, you should first add these columns to your dataframe. Afterward, you can proceed to melt and plot the data focusing on these four factors. Here's how to do it:
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Assuming factor_scores_varimax is already calculated and has the same number of rows as new_data_with_clusters
+# Adding Factor1 to Factor4 to new_data_with_clusters
+new_data_with_clusters_Potage$Factor1 <- unique_df_corrected2[, 2]
+new_data_with_clusters_Potage$Factor2 <- unique_df_corrected2[, 3]
+new_data_with_clusters_Potage$Factor3 <- unique_df_corrected2[, 4]
+#new_data_with_clusters_Washinton$Factor4 <- unique_df_corrected2[, 5]
+
+melted_data <- melt(
+  new_data_with_clusters_Potage,
+  id.vars = 'Depth_ft',
+  measure.vars = c('Factor1', 'Factor2', 'Factor3')
+)
+
+# Now plot with ggplot, focusing on the Factor1 to Factor4
+sp2 <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = variable)) +
+  geom_path() +  # Use geom_path for continuous lines representing each factor score
+  theme_bw() +
+  geom_hline(
+    yintercept = 6335,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 6444,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  labs(x = "Score", y = "Depth (ft)", title = "") +
+  scale_y_reverse() +  # Depth increases downwards
+  facet_wrap( ~ variable, scales = 'free_x', nrow = 1) +  # Arrange factors horizontally
+  theme(legend.position = "none")  # Remove the legend
+
+# Display the plot
+print(sp2)
+
+# Save the plot to a file
+ggsave(
+  "Potage_factor_scores_depth_plot.png",
+  sp2,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+
+# To add a cluster plot to your final visualization, positioning it to the right of other plots for potage
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  facet_wrap(~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker
+  geom_hline(yintercept = 6444, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill=NA), # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Potage, aes(x = factor(2), y = Depth_ft, fill = as.factor(chemofacies))) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors, labels = chemofacies_labels, name = "chemofacies") +
+  scale_y_reverse() +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker
+  geom_hline(yintercept = 6444, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker +
+  theme(
+    plot.title = element_text(hjust = 0.5), # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill=NA) # Add border to cluster panel
+  ) +
+  guides(fill=guide_legend(title="chemofacies")) # Ensure cluster legend is titled
+
+# Combine the plots using patchwork u can chage to #sp 2 for factors
+combined_plot <- sp2 + cluster_plot +  #chemical_plot
+  plot_layout(widths = c(0.6, 0.2)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave("potage_fa_combined_plot.png", plot = combined_plot, width = 8, height = 10, dpi = 300)
+```
+
+
+
+#loting Thinsection, and cluster in one plot_ sample for later(arranging the legend)
+```{r}
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` is already prepared with the appropriate structure
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Potage, aes(x = factor(1), y = Depth_ft, fill = as.factor(chemofacies))) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors, labels = chemofacies_labels, name = "chemofacies") +
+  scale_y_reverse() +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) +
+  geom_hline(yintercept = 6444, color = "black", linetype = "solid", size = 0.8) +
+  labs(title = "chemofacies") +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "",
+    panel.border = element_rect(color = "black", fill=NA)
+  ) +
+  guides(fill=guide_legend(title="chemofacies"))
+
+# Define the plot for lithotype data
+lithotype_data <- data.frame(
+  Depth_ft = c(6156.25, 6213.67, 6286.92, 6323.89, 6344.87, 6369.65, 6407.76, 6431.37),
+  Lithotype = factor(c("Dolomitic, argillaceous mudstone", "Argillaceous mudstone", "Argillaceous mudstone",
+                       "Argillaceous mudstone", "Calcareous/argillaceous mudstone", 
+                       "Calcareous/argillaceous mudstone", "Calcareous/argillaceous mudstone", 
+                       "Calcareous/argillaceous mudstone"),
+                     levels = c("Dolomitic, argillaceous mudstone", "Argillaceous mudstone", "Calcareous/argillaceous mudstone"))
+)
+
+lithotype_plot <- ggplot(lithotype_data, aes(x = factor(1), y = Depth_ft, fill = Lithotype)) +
+  geom_tile(width = 1, height = 1) +
+  scale_y_reverse() +
+  scale_fill_manual(values = c("Dolomitic, argillaceous mudstone" = "blue", "Argillaceous mudstone" = "pink",
+                               "Calcareous/argillaceous mudstone" = "green"), 
+                    name = "Lithotype",
+                    labels = c("Dolomitic, argillaceous mudstone", "Argillaceous mudstone", "Calcareous/argillaceous mudstone")) +
+  labs(title = "Lithotype") +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.3),
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill=NA)
+  ) +
+  guides(fill=guide_legend(title="Lithotypes"))
+
+
+# Combine the plots using patchwork
+combined_plot <-  sp + cluster_plot + lithotype_plot + 
+  plot_layout(widths = c(0.2, 0.1, 0.1))  # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave("33combined_cluster_lithotype_plot.png", combined_plot, width = 8, height = 10, dpi = 300)
+
+
+```
+
+
+
+
+#Washinton, This resampling routine was applied solely for visualization and interpolation purposes. It standardizes depth intervals to improve plot clarity and continuity without altering the original stratigraphic resolution or measured data values.
+If you need to resample the enire depth at a 0.6ft sampling steps for Washinton
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(readr)
+
+# Assuming noout_mydata is your DataFrame
+df2 <- Washinton
+
+# Function to detect unordered segments
+detect_unordered_segments <- function(depths) {
+  diffs <- diff(depths)
+  # Identifying indices where the depth decreases or does not increase by the regular interval
+  problem_indices <- which(diffs <= 0)
+  return(problem_indices)
+}
+
+# Function to resample a segment
+resample_segment <- function(df_segment) {
+  min_depth <- floor(min(df_segment$Depth_ft))
+  max_depth <- ceiling(max(df_segment$Depth_ft))
+  
+  depths_0 <- seq(from = min_depth, to = max_depth, by = 1)
+  depths_6 <- seq(from = min_depth + 0.6,
+                  to = max_depth,
+                  by = 1)
+  new_depths <- sort(c(depths_0, depths_6))
+  
+  new_depths_df <- data.frame(Depth_ft = new_depths)
+  df_resampled <- full_join(new_depths_df, df_segment, by = "Depth_ft") %>%
+    arrange(Depth_ft) %>%
+    fill(names(df_segment), .direction = "downup")
+  
+  return(df_resampled)
+}
+
+# Identify unordered segments
+problem_indices <- detect_unordered_segments(df2$Depth_ft)
+
+# Initialize an empty DataFrame to store the corrected segments
+df_corrected2 <- df2[0, ]
+
+# Process each unordered segment
+for (i in seq_along(problem_indices)) {
+  if (i == 1) {
+    # Handle the first segment
+    df_segment <- df2[1:problem_indices[i], ]
+  } else {
+    # Handle subsequent segments
+    df_segment <- df2[(problem_indices[i - 1] + 1):problem_indices[i], ]
+  }
+  
+  # Resample the segment
+  df_resampled_segment <- resample_segment(df_segment)
+  
+  # Append the resampled segment to the corrected DataFrame
+  df_corrected2 <- rbind(df_corrected2, df_resampled_segment)
+}
+
+# Handle the last segment if needed
+if (length(problem_indices) > 0 &&
+    tail(problem_indices, n = 1) < nrow(df2)) {
+  df_last_segment <- df2[(tail(problem_indices, n = 1) + 1):nrow(df2), ]
+  df_resampled_last_segment <- resample_segment(df_last_segment)
+  df_corrected2 <- rbind(df_corrected2, df_resampled_last_segment)
+} else {
+  df_corrected2 <- rbind(df_corrected2, df2)
+}
+
+# Print the corrected DataFrame
+print(df_corrected2)
+
+
+```
+
+
+
+#Assuming your dataframe 
+```{r}
+new_data_with_clusters2_Washinton <- Washinton[, !names(Washinton) %in% c("Depth_ft", "Formation")]
+new_data_with_clusters2_Washinton
+```
+
+
+
+# Subseting the dataframe with rows where formation is Utica and Point Pleasant formation 
+```{r}
+#using the resampled df
+new_data_with_clusters_Washinton <- df_corrected2
+new_data_with_clusters_Washinton
+# Assuming your dataframe is named df
+
+
+
+```
+
+Utica and Point Pleasant for Washinton
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Assuming new_data_with_clusters is your dataframe and it's already loaded
+
+# Manually define a color for each facies represented by numbers 1 through 5
+facies_colors <- c(
+  "1" = "#666666",
+  # Color for chemofacies 1
+  "2" = "#CC9933",
+  # Color for chemofacies 2
+  "3" = "#1B9E77",
+  # Color for chemofacies 3
+  "4" = "#7570B3",
+  # Color for chemofacies 4
+  "5" = "#66A61E"   # Color for chemofacies 5
+  
+)
+# Assign these colors to the named vector according to the unique values in the Cluster column
+names(facies_colors) <- sort(as.character(unique(
+  new_data_with_clusters_Washinton$chemofacies
+)))
+
+# Plot facies over depth
+facies_plot2 <- ggplot(new_data_with_clusters_Washinton,
+                       aes(
+                         y = Depth_ft,
+                         x = factor(1),
+                         fill = as.factor(chemofacies)
+                       )) +
+  geom_tile(width = 1, height = 1) +  # Adjust height for visual preference
+  scale_fill_manual(values = facies_colors,
+                    labels = chemofacies_labels,
+                    name = "chemofacies") +
+  scale_y_reverse() +  # Depth increasing downwards
+  labs(x = NULL, y = "Depth (ft)") +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "right"
+  ) +
+  coord_fixed(ratio = 1 / 10)  # This sets the aspect ratio of the plot
+
+# Print the plot
+print(facies_plot2)
+
+# Save the plot using ggsave() - adjust dimensions as needed for your specific use case
+ggsave(
+  "2facies_plot_Washinton.png",
+  plot = facies_plot2,
+  width = 10,
+  height = 5,
+  units = "in"
+)
+
+```
+
+#well_log_plot_Washinton
+```{r}
+# Assuming you have the following libraries loaded
+library(ggplot2)
+library(reshape2)
+
+# Your new_data_with_clusters dataframe should have the Al_wt% and Si_wt% variables
+# and the Depth_ft variable
+
+# First, melt the data frame so that it is long format for ggplot
+melted_data2 <- melt(
+  new_data_with_clusters_Washinton,
+  id.vars = 'Depth_ft',
+  measure.vars = c('Ca_wt%', 'Si_wt%', 'SGR')
+) #'Al_wt%', 'Mg_wt%',
+
+# Now, you can split the 'variable' column to separate the variables and well identifiers
+# Note: Assuming your dataframe does not have separate wells and the measurements
+# are in columns Al_wt% and Si_wt%
+melted_data2$Var <- gsub("_.*", "", melted_data2$variable)
+melted_data2$Well <- gsub(".*_", "", melted_data2$variable)
+
+# Convert Well to a factor if it's not already
+melted_data2$Well <- as.factor(melted_data2$Well)
+
+# Now plot with ggplot
+sp2 <- ggplot(melted_data2, aes(x = value, y = Depth_ft, color = Var)) +
+  theme_bw() +
+  geom_path(aes(linetype = Var)) +
+  labs(title = '') +
+  scale_y_reverse() +
+  geom_hline(
+    yintercept = 7849,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 7962,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  facet_grid(. ~ Var, scales = 'free_x') + # free scales allow each variable to have its own x scale
+  theme(legend.position = "none") # This will remove the legend # free scales allow each variable to have its own x scale
+
+# If you want to see the plot in your R environment
+print(sp2)
+
+# Or, if you want to save the plot to a file
+ggsave(
+  "2well_log_plot_Washinton.png",
+  sp2,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+
+
+# PLOTING ELEMENT WITH FACIES
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data2, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  geom_hline(
+    yintercept = 7849,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 7962,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  facet_wrap( ~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill = NA),
+    # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Washinton,
+                       aes(
+                         x = factor(1),
+                         y = Depth_ft,
+                         fill = as.factor(chemofacies)
+                       )) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors,
+                    labels = chemofacies_labels,
+                    name = "chemofacies") +
+  scale_y_reverse() +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA) # Add border to cluster panel
+  ) +
+  guides(fill = guide_legend(title = "chemofacies")) # Ensure cluster legend is titled
+
+
+
+# Combine the plots using patchwork
+combined_plot22 <- sp2 + cluster_plot +  #chemical_plot
+  geom_hline(
+    yintercept = 7849,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 7962,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  plot_layout(widths = c(0.2, 0.1)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot22)
+
+# Save the combined plot with desired dimensions
+ggsave(
+  "chemical_cluster_plot_Washinton22.png",
+  combined_plot22,
+  width = 8,
+  height = 10,
+  dpi = 300
+)
+
+```
+
+
+
+# To plot elements and one factor scores
+This code performs a series of data preparation, interpolation, and plotting steps to visualize factor scores and elemental concentrations from the Washington core (Point Pleasant interval), likely for interpretation or comparison of stratigraphy, geochemistry, or depositional patterns. Here's a step-by-step explanation:
+```{r}
+
+
+# First, convert factor_scores_varimax to a data frame if it's not already
+#factor_scores_df2 <- as.data.frame(factor_scores_varimax)
+
+factor_scores_df2 <- factor_scores
+
+# Then, add the Depth_ft column from noout_mydata to factor_scores_df
+factor_scores_df2$Depth_ft <- data$Depth_ft
+
+# Now factor_scores_df contains the factor scores and the Depth_ft column
+print(factor_scores_df2)
+
+
+# Add Depth_ft and Core columns from new_data_with_clusters to factor_scores_df
+factor_scores_df2$Depth_ft <- new_data_with_clusters$Depth_ft
+factor_scores_df2$Core <- new_data_with_clusters$Core
+
+# If you want to save this updated dataframe under a new name
+to_plot_factor_scores_df <- factor_scores_df2
+
+
+
+# Create the first dataframe with rows where formation is "Point Pleasant FM"
+FA_Washinton <- subset(to_plot_factor_scores_df, Core == "Washinton")
+#View(FA_Washinton)
+
+names(FA_Washinton)
+#To create a new dataframe FA_df2 from another dataframe FA_Washington while excluding the Core column,
+unique_FA_df2 <- dplyr::select(FA_Washinton, -Core)
+
+
+
+
+# Assuming your DataFrame has been previously defined, if not, load or define it here
+
+
+# Function to detect unordered segments
+detect_unique_unordered_segments <- function(depths) {
+  diffs <- diff(depths)
+  problem_indices <- which(diffs <= 0)
+  return(problem_indices)
+}
+
+# Function to resample a segment
+resample_unique_segment <- function(df_segment) {
+  min_depth <- floor(min(df_segment$Depth_ft))
+  max_depth <- ceiling(max(df_segment$Depth_ft))
+  
+  depths_0 <- seq(from = min_depth, to = max_depth, by = 1)
+  depths_6 <- seq(from = min_depth + 0.6,
+                  to = max_depth,
+                  by = 1)
+  new_depths <- sort(c(depths_0, depths_6))
+  
+  new_depths_df <- data.frame(Depth_ft = new_depths)
+  df_resampled <- full_join(new_depths_df, df_segment, by = "Depth_ft") %>%
+    arrange(Depth_ft) %>%
+    fill(names(df_segment), .direction = "downup")
+  
+  return(df_resampled)
+}
+
+# Identify unordered segments
+unique_problem_indices <- detect_unique_unordered_segments(unique_FA_df2$Depth_ft)
+
+# Initialize an empty DataFrame to store the corrected segments
+unique_df_corrected2 <- unique_FA_df2[0, ]
+
+# Process each unordered segment
+for (i in seq_along(unique_problem_indices)) {
+  if (i == 1) {
+    df_segment <- unique_FA_df2[1:unique_problem_indices[i], ]
+  } else {
+    df_segment <- unique_FA_df2[(unique_problem_indices[i - 1] + 1):unique_problem_indices[i], ]
+  }
+  
+  df_resampled_segment <- resample_unique_segment(df_segment)
+  unique_df_corrected2 <- rbind(unique_df_corrected2, df_resampled_segment)
+}
+
+# Handle the last segment if needed
+if (length(unique_problem_indices) > 0 &&
+    tail(unique_problem_indices, n = 1) < nrow(unique_FA_df2)) {
+  df_last_segment <- unique_FA_df2[(tail(unique_problem_indices, n = 1) + 1):nrow(unique_FA_df2), ]
+  df_resampled_last_segment <- resample_unique_segment(df_last_segment)
+  unique_df_corrected2 <- rbind(unique_df_corrected2, df_resampled_last_segment)
+} else {
+  unique_df_corrected2 <- rbind(unique_df_corrected2, unique_FA_df2)
+}
+
+# Print the corrected DataFrame
+print(unique_df_corrected2)
+
+
+
+new_data_with_clusters_Washinton$Factor1 <- unique_df_corrected2[, 2]
+# Your new_data_with_clusters dataframe should have the Al_wt% and Si_wt% variables
+# and the Depth_ft variable
+
+# First, melt the data frame so that it is long format for ggplot
+melted_data <- melt(
+  new_data_with_clusters_Washinton,
+  id.vars = 'Depth_ft',
+  measure.vars = c('Factor1', 'Al_wt%', 'Si_wt%', 'K_wt%', 'Zr_ppm')
+)
+
+#and this too if you dont want to see the  factor
+#Reorder the levels of the `variable` factor to ensure 'Factor1_Score_1' comes last
+# This is crucial after melting but before plotting
+melted_data$variable <- factor(melted_data$variable,
+                               levels = c('Factor1', 'Al_wt%', 'Si_wt%', 'K_wt%', 'Zr_ppm'))
+
+# Now, you can split the 'variable' column to separate the variables and well identifiers
+# Note: Assuming your dataframe does not have separate wells and the measurements
+# are in columns Al_wt% and Si_wt%
+melted_data$Var <- gsub("_.*", "", melted_data$variable)
+melted_data$Well <- gsub(".*_", "", melted_data$variable)
+
+# Convert Well to a factor if it's not already
+melted_data$Well <- as.factor(melted_data$Well)
+
+# Now plot with ggplot
+sp_fa <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  theme_bw() +
+  geom_path(aes(linetype = Var)) +
+  labs(title = '') +
+  geom_hline(
+    yintercept = 7849,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 7962,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  scale_y_reverse() +
+  facet_grid(. ~ variable, scales = 'free_x') + # free scales allow each variable to have its own x scale
+  theme(legend.position = "none") # This will remove the legend # free scales allow each variable to have its own x scale
+
+# If you want to see the plot in your R environment
+print(sp_fa)
+
+# Or, if you want to save the plot to a file
+ggsave(
+  "FA_log_plot.png",
+  sp_fa,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+
+
+```
+
+
+#To add a cluster plot to your final visualization, positioning it to the right of other plots.
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  facet_wrap(~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  geom_hline(yintercept = 7849, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker
+  geom_hline(yintercept = 7962, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill=NA), # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Washinton, aes(x = factor(2), y = Depth_ft, fill = as.factor(chemofacies))) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors, labels = chemofacies_labels, name = "chemofacies") +
+  scale_y_reverse() +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  geom_hline(yintercept = 7849, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker
+  geom_hline(yintercept = 7962, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker +
+  theme(
+    plot.title = element_text(hjust = 0.5), # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill=NA) # Add border to cluster panel
+  ) +
+  guides(fill=guide_legend(title="chemofacies")) # Ensure cluster legend is titled
+
+# Combine the plots using patchwork
+combined_plot <- sp_fa + cluster_plot +  #chemical_plot
+  plot_layout(widths = c(0.6, 0.2)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave("combined_plot.png", plot = combined_plot, width = 9, height = 10, dpi = 300)
+```
+
+
+#To plot Factor1, Factor2, Factor3, and Factor4 from your factor_scores_varimax against depth in new_data_with_clusters, and assuming these factors are the first four columns in your factor_scores_varimax, you should first add these columns to your dataframe. Afterward, you can proceed to melt and plot the data focusing on these four factors. Here's how to do it:
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Assuming factor_scores_varimax is already calculated and has the same number of rows as new_data_with_clusters
+# Adding Factor1 to Factor4 to new_data_with_clusters
+new_data_with_clusters_Washinton$Factor1 <- unique_df_corrected2[, 2]
+new_data_with_clusters_Washinton$Factor2 <- unique_df_corrected2[, 3]
+new_data_with_clusters_Washinton$Factor3 <- unique_df_corrected2[, 4]
+#new_data_with_clusters_Washinton$Factor4 <- unique_df_corrected2[, 5]
+
+melted_data <- melt(new_data_with_clusters_Washinton, id.vars = 'Depth_ft', 
+                    measure.vars = c('Factor1', 'Factor2', 'Factor3'))
+
+# Now plot with ggplot, focusing on the Factor1 to Factor4
+sp2 <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = variable)) +
+  geom_path() +  # Use geom_path for continuous lines representing each factor score
+  theme_bw() + 
+  geom_hline(yintercept = 7849, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker
+  geom_hline(yintercept = 7962, color = "black", linetype = "solid", size = 0.8) +  # Make the line solid and thicker +
+  labs(x = "Score", y = "Depth (ft)", title = "") +
+  scale_y_reverse() +  # Depth increases downwards
+  facet_wrap(~ variable, scales = 'free_x', nrow = 1) +  # Arrange factors horizontally
+  theme(legend.position = "none")  # Remove the legend
+
+# Display the plot
+print(sp2)
+
+# Save the plot to a file
+ggsave("factor_scores_depth_plot.png", sp2, width = 6, height = 10, dpi = 300)
+
+```
+
+
+#To add a cluster plot to your final visualization, positioning it to the right of other plots.
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth_ft, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse() +
+  facet_wrap( ~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  geom_hline(
+    yintercept = 7849,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 7962,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill = NA),
+    # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(new_data_with_clusters_Washinton,
+                       aes(
+                         x = factor(2),
+                         y = Depth_ft,
+                         fill = as.factor(chemofacies)
+                       )) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors,
+                    labels = chemofacies_labels,
+                    name = "chemofacies") +
+  scale_y_reverse() +
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  geom_hline(
+    yintercept = 7849,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker
+  geom_hline(
+    yintercept = 7962,
+    color = "black",
+    linetype = "solid",
+    size = 0.8
+  ) +  # Make the line solid and thicker +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA) # Add border to cluster panel
+  ) +
+  guides(fill = guide_legend(title = "chemofacies")) # Ensure cluster legend is titled
+
+# Combine the plots using patchwork u can chage to #sp 2 for factors
+combined_plot <- sp2 + cluster_plot +  #chemical_plot
+  plot_layout(widths = c(0.6, 0.2)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+# Save the combined plot with desired dimensions
+ggsave(
+  "fa_combined_plot.png",
+  plot = combined_plot,
+  width = 8,
+  height = 10,
+  dpi = 300
+)
+```
+
+
+# Includes PCA scores and cluster assignments for both core
+
+```{r}
+# library(ggfortify)
+# library(ggplot2)
+# 
+# # Assuming `port.pca` is your PCA result and `new_data_with_clusters2` includes PCA scores and cluster assignments
+# new_data_with_clusters_Vituai$chemofacies <- as.factor(new_data_with_clusters_Vituai$chemofacies)
+# 
+# # Define colors for each cluster
+# facies_colors <- c(
+#   "1" = "#666666",
+#   # Color for chemofacies 1
+#   "2" = "#CC9933",
+#   # Color for chemofacies 2
+#   "3" = "#1B9E77",
+#   # Color for chemofacies 3
+#   "4" = "#7570B3",
+#   # Color for chemofacies 4
+#   "5" = "#66A61E"   # Color for chemofacies 5
+# )
+# 
+# # Plotting the clusters without the default loadings
+# p <- autoplot(port.pca,
+#               data = new_data_with_clusters_Vituai,
+#               colour = 'chemofacies',
+#               loadings = FALSE) +
+#   scale_colour_manual(values = facies_colors)
+# 
+# # Define the color for the loadings
+# loadings_color <- "#2b2b2b"
+# 
+# # Extract and scale loadings from the PCA result
+# loadings <- as.data.frame(port.pca$rotation[, 1:2])
+# names(loadings) <- c("xend", "yend")
+# loadings$x <- 0
+# loadings$y <- 0
+# 
+# # Scale the length of the loading vectors
+# loading_scale_factor <- 0.2  # Adjust this factor to scale the arrow length
+# loadings$xend <- loadings$xend * loading_scale_factor
+# loadings$yend <- loadings$yend * loading_scale_factor
+# 
+# # Add scaled loadings to the plot
+# p + geom_segment(
+#   data = loadings,
+#   aes(
+#     x = x,
+#     y = y,
+#     xend = xend,
+#     yend = yend
+#   ),
+#   arrow = arrow(type = "closed", length = unit(0.1, "inches")),
+#   color = loadings_color,
+#   inherit.aes = FALSE
+# ) +
+#   geom_text(
+#     data = loadings,
+#     aes(
+#       x = xend,
+#       y = yend,
+#       label = rownames(loadings)
+#     ),
+#     color = loadings_color,
+#     vjust = 1,
+#     hjust = 1,
+#     size = 3,
+#     inherit.aes = FALSE
+#   )
+
+```
+
+
+#PCA_chemofacies
+```{r}
+library(ggfortify)
+library(ggplot2)
+
+# Convert chemofacies to factor for consistent coloring
+new_data_with_clusters_Vituai$chemofacies <- as.factor(new_data_with_clusters_Vituai$chemofacies)
+
+# Define colors for each cluster
+facies_colors <- c(
+  "1" = "#666666",
+  # Detrital Dolomitic
+  "2" = "#CC9933",
+  # Siliceous Argillaceous
+  "3" = "#1B9E77",
+  # Mixed Silica-Argillaceous
+  "4" = "#7570B3",
+  # Carbonate-Dominated
+  "5" = "#66A61E"   # Molybdenum-Rich Anoxic
+)
+
+# Define label mapping for chemofacies
+chemofacies_labels <- c(
+  "1" = "Detrital Dolomitic",
+  "2" = "Siliceous Argillaceous",
+  "3" = "Mixed Silica-Argillaceous",
+  "4" = "Carbonate-Dominated",
+  "5" = "Molybdenum-Rich Anoxic"
+)
+
+# Create base PCA plot without loadings
+p <- autoplot(port.pca,
+              data = new_data_with_clusters_Vituai,
+              colour = 'chemofacies',
+              loadings = FALSE) +
+  scale_colour_manual(values = facies_colors,
+                      labels = chemofacies_labels,
+                      name = "chemofacies") +
+  theme_minimal() +
+  labs(title = "PCA Biplot with K-means Chemofacies", x = "Principal Component 1", y = "Principal Component 2") +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+# Define the color for the loading vectors
+loadings_color <- "#2b2b2b"
+
+# Extract and scale the loadings from the PCA object
+loadings <- as.data.frame(port.pca$rotation[, 1:2])
+names(loadings) <- c("xend", "yend")
+loadings$x <- 0
+loadings$y <- 0
+
+# Scale the arrow lengths
+loading_scale_factor <- 0.2
+loadings$xend <- loadings$xend * loading_scale_factor
+loadings$yend <- loadings$yend * loading_scale_factor
+
+# Add loadings to the plot
+p_final <- p +
+  geom_segment(
+    data = loadings,
+    aes(
+      x = x,
+      y = y,
+      xend = xend,
+      yend = yend
+    ),
+    arrow = arrow(type = "closed", length = unit(0.1, "inches")),
+    color = loadings_color,
+    inherit.aes = FALSE
+  ) +
+  geom_text(
+    data = loadings,
+    aes(
+      x = xend,
+      y = yend,
+      label = rownames(loadings)
+    ),
+    color = loadings_color,
+    vjust = 1.2,
+    hjust = 1.2,
+    size = 3,
+    inherit.aes = FALSE
+  )
+
+# Print the plot
+print(p_final)
+
+# Step 4: Save high-res image for publication
+ggsave(
+  "PCA_chemofacies_publication.png",
+  p_final,
+  width = 8,
+  height = 6,
+  dpi = 600
+)
+
+```
+
+
+#Row bining the two df that has been detpth corrected(df_corrected2 and df_corrected) FOR BOTH CORES
+```{r}
+# Assuming df_corrected2 and df_corrected are already loaded in your R environment
+
+# Combine the data frames by rows
+combined_df_for_resampled_depth <- rbind(df_corrected, df_corrected2)
+
+combined_df_for_resampled_depth
+# To remove a column named "Chemofacies" from a
+#DataFrame in R before writing it to a file (like CSV)
+# Save the wide data to CSV
+
+
+df_clean <- dplyr::select(combined_df_for_resampled_depth, -Chemofacies) %>% write.csv("chemofacoes_data_clean.csv", row.names = FALSE)
+
+```
+
+# Interpreting the clusters
+Each sample in the dataset has now been assigned to one of six clusters. If we are going to interpret these clusters as geochemical facies, it is useful to inspect the geochemical signature of each cluster. 
+
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+# Assume facies_colors are defined somewhere in your script as before
+facies_colors <- c(
+  "1" = "#666666",
+  # Color for chemofacies 1
+  "2" = "#CC9933",
+  # Color for chemofacies 2
+  "3" = "#1B9E77",
+  # Color for chemofacies 3
+  "4" = "#7570B3",
+  # Color for chemofacies 4
+  "5" = "#66A61E"   # Color for chemofacies 5
+  
+)
+# Function to create a more visible and presentation-ready plot
+create_plot <- function(element, facies_colors) {
+  ggplot(combined_df_for_resampled_depth,
+         aes(
+           x = factor(chemofacies),
+           y = get(element),
+           fill = factor(chemofacies)
+         )) +
+    geom_boxplot(
+      outlier.color = "red",
+      outlier.shape = 3,
+      color = "black"
+    ) +
+    stat_boxplot(geom = "errorbar",
+                 width = 0.25,
+                 color = "black") +
+    scale_fill_manual(values = facies_colors) +
+    theme_minimal(base_size = 18) +
+    labs(title = element, y = element, x = "chemofacies") +
+    theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 18),
+      axis.title.y = element_text(size = 18),
+      axis.text.x = element_text(size = 16),
+      axis.text.y = element_text(size = 16),
+      legend.position = "none",
+      panel.background = element_rect(fill = "grey90", color = NA),
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+}
+
+# Call the function with an element
+element_plot <- create_plot("Ca_wt%", facies_colors)
+print(element_plot)
+
+# Save the plot
+ggsave(
+  "presentation_plot_Al_wt.png",
+  plot = element_plot,
+  width = 10,
+  height = 7,
+  dpi = 300
+)
+
+
+```
+
+#Generate and Arrange Multiple Plots
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+# Define colors for each cluster
+facies_colors <- c(
+  "1" = "#666666",
+  # Color for chemofacies 1
+  "2" = "#CC9933",
+  # Color for chemofacies 2
+  "3" = "#1B9E77",
+  # Color for chemofacies 3
+  "4" = "#7570B3",
+  # Color for chemofacies 4
+  "5" = "#66A61E"   # Color for chemofacies 5
+  
+)
+
+create_plot <- function(element, facies_colors) {
+  ggplot(combined_df_for_resampled_depth,
+         aes(
+           x = factor(chemofacies),
+           y = get(element),
+           fill = factor(chemofacies)
+         )) +
+    geom_boxplot(
+      outlier.color = "red",
+      outlier.shape = 3,
+      color = "black"
+    ) +
+    stat_boxplot(geom = "errorbar",
+                 width = 0.25,
+                 color = "black") +
+    scale_fill_manual(values = facies_colors) +
+    theme_minimal(base_size = 18) +
+    labs(title = element, y = element, x = "chemofacies") +
+    theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 18),
+      axis.title.y = element_text(size = 18),
+      axis.text.x = element_text(size = 16),
+      axis.text.y = element_text(size = 16),
+      legend.position = "none",
+      panel.background = element_rect(fill = "grey90", color = NA),
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+}
+
+# Example usage:
+element_plot <- create_plot("Ca_wt%", facies_colors)
+print(element_plot)
+
+# Save the plot
+ggsave(
+  "presentation_plot_Al_wt.png",
+  plot = element_plot,
+  width = 10,
+  height = 7,
+  dpi = 300
+)
+
+
+
+
+elements <- c("Al_wt%", "Si_wt%", "Mg_wt%", "Ca_wt%")  # Add or remove elements as needed
+plots <- lapply(elements, function(element)
+  create_plot(element, facies_colors))
+
+# Arrange the generated plots into a grid
+grid_layout <- do.call(grid.arrange, c(plots, ncol = 2, nrow = 2))
+print(grid_layout)
+
+```
+
+
+#Geologic factors, including bottom water redox conditions, paleo productivity productivity levels, sediment provenance, and overall bulk mineral compositions, offer further rationale for naming the of clusters, beyond solely mathematical justifications.
+
+```{r}
+library(dplyr)
+
+# Assuming new_data_with_clusters is your dataframe and it contains the columns as specified
+elements <- c(
+  "Al_wt%",
+  "Si_wt%",
+  "Ti_wt%",
+  "Zr_ppm",
+  "Mg_wt%",
+  "Ca_wt%",
+  "P_wt%",
+  "Mo_ppm",
+  "Ni_ppm",
+  "U_ppm",
+  "V_ppm",
+  "Si/Al",
+  "Zr/Al",
+  "Si/Ti",
+  "Sr/Ca",
+  "Si/Ca"
+)
+
+# Calculate summary statistics for each element within each cluster
+statistics_summary <- combined_df_for_resampled_depth %>%
+  gather(key = "Element", value = "Value", elements) %>% # Reshape data to long format
+  group_by(chemofacies, Element) %>%
+  summarise(
+    Mean = mean(Value, na.rm = TRUE),
+    Median = median(Value, na.rm = TRUE),
+    SD = sd(Value, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE),
+    .groups = 'drop' # This line ensures the summarise operation doesn't result in a grouped df
+  )
+
+# View the summary
+print(statistics_summary)
+
+```
+
+
+
+
+#The output will be a data frame with columns for Cluster, Element, Median, Min, Max, and Proxy, providing a clear summary of the statistics for each element categorized by proxy type.
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# Assuming new_data_with_clusters is already loaded and elements defined
+
+# Reshape data to long format
+long_data <- combined_df_for_resampled_depth %>%
+  gather(key = "Element", value = "Value", elements)
+
+# Calculate median and range (min-max) for each element within each cluster
+statistics_summary2 <- long_data %>%
+  group_by(chemofacies, Element) %>%
+  summarise(
+    Median = median(Value, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE),
+    .groups = 'drop' # This line ensures the summarise operation doesn't result in a grouped df
+  ) %>%
+  # Add a column to categorize each element as per your proxies
+  mutate(
+    Proxy = case_when(
+      Element %in% c("Si/Al", "Si/Ti") ~ "Biogenic/Detrital",
+      Element %in% c("Ti_wt%", "Zr_ppm") ~ "Detrital Proxies",
+      Element %in% c("U_ppm", "V_ppm") ~ "Suboxic and Anoxic Proxy",
+      Element == "Mo_ppm" ~ "Anoxic and Euxinic Proxy",
+      Element == "P_wt%" ~ "Bio-Productivity Proxy",
+      Element == "Al_wt%" ~ "Clay",
+      Element == "Si/Ca" ~ "Silica to Carbonate Ratio",
+      Element == "Sr/Ca" ~ "Aragonite to Calcite Ratio",
+      Element == "Ca_wt%" ~ "Calcite",
+      Element == "Mg_wt%" ~ "Dolomite",
+      Element == "Zr/Al" ~ "Detrital to Biogenic/Pelagic",
+      Element == "Si_wt%" ~ "Quartz",
+      Element == "Ni_ppm" ~ "Nutrient"
+      
+      
+      
+    )
+  ) %>%
+  # Reorder the Proxy column so "Other" comes first globally, but we need to sort by Cluster then Proxy
+  mutate(Proxy = factor(
+    Proxy,
+    levels = c(
+      "Clay",
+      "Calcite",
+      "Dolomite",
+      "quartz",
+      "Nutrient",
+      "Detrital Proxies",
+      "Suboxic and Anoxic Proxy",
+      "Anoxic and Euxinic Proxy",
+      "Bio-Productivity Proxy",
+      "Biogenic/Detrital",
+      "Detrital to Biogenic/Pelagic",
+      "Aragonite to Calcite Ratio",
+      "Silica to Carbonate Ratio"
+    )
+  )) %>%
+  # Arrange by Cluster first (ensuring facies sequence) and then by Proxy
+  arrange(chemofacies, Proxy)
+
+# View the summary
+print(statistics_summary2)
+
+
+
+```
+
+
+
+# The output will be a data frame with columns for Cluster, Element, Median, Min, Max, and Proxy, providing a clear summary of the statistics for each element categorized by proxy type.
+```{r}
+library(dplyr)
+library(tidyr)
+
+# Assuming combined_df_for_resampled_depth is already loaded and elements are defined
+
+# Reshape data to long format
+long_data <- combined_df_for_resampled_depth %>%
+  pivot_longer(cols = elements,
+               names_to = "Element",
+               values_to = "Value")
+
+# Calculate median and range (min-max) for each element within each cluster
+statistics_summary2 <- long_data %>%
+  group_by(chemofacies, Element) %>%
+  summarise(
+    Median = median(Value, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE),
+    .groups = 'drop' # This line ensures the summarise operation doesn't result in a grouped df
+  ) %>%
+  # Add a column to categorize each element as per your proxies
+  mutate(
+    Proxy = case_when(
+      Element %in% c("Si/Al", "Si/Ti") ~ "Biogenic/Detrital",
+      Element %in% c("Ti_wt%", "Zr_ppm") ~ "Detrital Proxies",
+      Element %in% c("U_ppm", "V_ppm") ~ "Suboxic and Anoxic Proxy",
+      Element == "Mo_ppm" ~ "Anoxic and Euxinic Proxy",
+      Element == "P_wt%" ~ "Bio-Productivity Proxy",
+      Element == "Al_wt%" ~ "Clay",
+      Element == "Si/Ca" ~ "Silica to Carbonate Ratio",
+      Element == "Sr/Ca" ~ "Aragonite to Calcite Ratio",
+      Element == "Ca_wt%" ~ "Calcite",
+      Element == "Mg_wt%" ~ "Dolomite",
+      Element == "Zr/Al" ~ "Detrital to Biogenic/Pelagic",
+      Element == "Si_wt%" ~ "Quartz",
+      Element == "Ni_ppm" ~ "Nutrient"
+    )
+  ) %>%
+  # Reorder the Proxy column so "Other" comes first globally, but we need to sort by Cluster then Proxy
+  mutate(Proxy = factor(
+    Proxy,
+    levels = c(
+      "Clay",
+      "Calcite",
+      "Dolomite",
+      "Quartz",
+      "Nutrient",
+      "Detrital Proxies",
+      "Suboxic and Anoxic Proxy",
+      "Anoxic and Euxinic Proxy",
+      "Bio-Productivity Proxy",
+      "Biogenic/Detrital",
+      "Detrital to Biogenic/Pelagic",
+      "Aragonite to Calcite Ratio",
+      "Silica to Carbonate Ratio"
+    )
+  )) %>%
+  # Arrange by Cluster first (ensuring facies sequence) and then by Proxy
+  arrange(chemofacies, Proxy)
+
+# View the summary
+print(statistics_summary2)
+
+```
+
+
+
+
+#The output will be a data frame with columns for Cluster, Element, Median, Min, Max, and Proxy, providing a clear summary of the statistics for each element categorized by proxy type.
+min-max (median; mean)
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+
+# Reshape data to long format
+long_data <- combined_df_for_resampled_depth %>%
+  gather(key = "Element", value = "Value", elements)
+
+# Calculate median, min, and max for each element within each cluster
+statistics_summary2 <- long_data %>%
+  group_by(chemofacies, Element) %>%
+  summarise(
+    Median = round(median(Value, na.rm = TRUE), 2),
+    # Round to 2 decimal places
+    Min = round(min(Value, na.rm = TRUE), 2),
+    # Round to 2 decimal places
+    Max = round(max(Value, na.rm = TRUE), 2),
+    # Round to 2 decimal places
+    .groups = 'drop'
+  ) %>%
+  # Categorize each element by proxy
+  mutate(
+    Proxy = case_when(
+      Element %in% c("Si/Al", "Si/Ti") ~ "Biogenic/Detrital",
+      Element %in% c("Ti_wt%", "Zr_ppm") ~ "Detrital Proxies",
+      Element %in% c("U_ppm", "V_ppm") ~ "Suboxic and Anoxic Proxy",
+      Element == "Mo_ppm" ~ "Anoxic, and Euxinic Proxy",
+      Element == "P_wt%" ~ "Bio-Productivity Proxy",
+      Element == "Al_wt%" ~ "Clay",
+      Element == "Si/Ca" ~ "Silica to Carbonate Ratio",
+      Element == "Sr/Ca" ~ "Aragonite to Calcite Ratio",
+      Element == "Ca_wt%" ~ "Calcite",
+      Element == "Mg_wt%" ~ "Dolomite",
+      Element == "Zr/Al" ~ "Detrital to Biogenic/Pelagic",
+      Element == "Si_wt%" ~ "Quartz",
+      Element == "Ni_ppm" ~ "Nutrient",
+      TRUE ~ "Other"
+    ),
+    # Format statistics as a string with at most 2 decimal places
+    Stats = sprintf("%.2f (%.2f-%.2f)", Median, Min, Max)
+  ) %>%
+  # Arrange by Proxy
+  mutate(Proxy = factor(
+    Proxy,
+    levels = c(
+      "Clay",
+      "Calcite",
+      "Dolomite",
+      "Quartz",
+      "Nutrient",
+      "Detrital Proxies",
+      "Suboxic and Anoxic Proxy",
+      "Anoxic, and Euxinic Proxy",
+      "Bio-Productivity Proxy",
+      "Biogenic/Detrital",
+      "Detrital to Biogenic/Pelagic",
+      "Aragonite to Calcite Ratio",
+      "Silica to Carbonate Ratio"
+    )
+  )) %>%
+  arrange(Proxy)
+
+# Pivot data to wide format for Element-Cluster statistics
+wide_data <- statistics_summary2 %>%
+  pivot_wider(
+    id_cols = c("Element", "Proxy"),
+    names_from = chemofacies,
+    values_from = "Stats",
+    names_prefix = "Cluster_"
+  )
+
+# Print the wide data
+print(wide_data)
+
+# Pivot data to wide format, with each Element as a row and Clusters as columns
+wide_data <- statistics_summary2 %>%
+  pivot_wider(
+    id_cols = c("Element", "Proxy"),
+    names_from = chemofacies,
+    values_from = "Stats",
+    names_prefix = "chemofacies_"
+  )
+
+# Print the wide data
+print(wide_data)
+
+# Generate and style the table for display
+wide_data %>%
+  kable(caption = "Variations of Representative Element Concentrations of Different Chemofacies in the Utica Shale") %>%
+  kable_styling(
+    full_width = FALSE,
+    latex_options = "scale_down",
+    bootstrap_options = c("striped", "hover"),
+    row_label_position = 'c',
+    font_size = 10,
+    # Adjust font size as needed
+    position = 'center'
+  ) %>%
+  kable_classic(full_width = FALSE)
+
+# Save the wide data to CSV
+write.csv(wide_data, "chemofacies_element_statistics.csv", row.names = FALSE)
+
+```
+
+
+
+# Here i am crating the data frame with factor score and chemofacies to use for Calculate the median factor scores for the entire dataset and median for Each factor score within each cluster.
+Conduct hypothesis testing (Kruskal-Wallis Test) to test whether the difference in step (4) is significant
+
+```{r}
+
+# Assuming both dataframes have the same number of rows
+factor_scores_df1 <- cbind(factor_scores, chemofacies = new_data_with_clusters$chemofacies)
+factor_scores_df1
+
+
+# Write the dataframe to a CSV file
+write.csv(factor_scores_df1,
+          "factorscores_chemofacies.csv",
+          row.names = FALSE)
+
+```
+
+
+# merge cleaned or resampled geochemical data with factor scores 
+```{r}
+library(dplyr)
+
+washinton3rd <- cbind(df_corrected2, unique_df_corrected2)
+washinton3rd
+
+
+write.csv(washinton3rd, "washinton3rd.csv", row.names = FALSE)
+ 
+```
+
