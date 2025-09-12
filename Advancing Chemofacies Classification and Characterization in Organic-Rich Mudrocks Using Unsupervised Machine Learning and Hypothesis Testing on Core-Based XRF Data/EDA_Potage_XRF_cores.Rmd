@@ -1,0 +1,569 @@
+---
+title: "Appendix A –Tracker Core Data Pre-Treatment and Exploration; Utica Data Set"
+author: "Hope"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  html_document: default
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  always_allow_html: yes
+---
+
+##Load the required libraries
+
+```{r}
+# Load the required libraries
+library(plyr)                           # splitting, applying and combining data by Hadley Wickham 
+library(ggplot2)                        # for the custom biplot
+library(lattice)                        # for the matrix scatter plot
+library(corrplot)                       # for the corrplot correlation plot
+library(readr)
+library(corrplot)
+library(corrplot)
+library(RGeostats)
+library(stringr)
+library(shiny)
+library(PerformanceAnalytics)
+library(GGally)
+library(DT)
+library(Cairo)
+library(psych)
+library(markdown)
+library(packHV)
+library(shinyjs)
+library(rmarkdown)
+library(knitr)
+library(gridExtra)
+library(formattable)
+library(data.table)
+library(farver)
+library(tidyverse)
+library(devtools)
+library(RColorBrewer)
+library(MASS)
+library(ggfortify)
+library(factoextra)
+library(nFactors)
+library(FactoMineR)
+library(gapminder)
+library(Matrix)
+library(magrittr) 
+library(kableExtra)
+library(ggforce)
+library(ggrepel)
+library(operator.tools)
+library(gstat)
+library(sp)
+library(dplyr)
+library(reshape2)
+
+
+
+ 
+
+
+```
+# To Checks the current print precision (number of digits shown) and Sets it to 15 so that numbers are displayed with more detail in the console
+
+```{r}
+getOption("digits")
+options(digits=15)
+```
+
+
+# Load the  the raw xrf data from kemeh, Potage Data 
+```{r}
+
+
+Raw_Potage_data <- read_csv(
+  "/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/EDA_CORES/XRF_Potage.csv"
+)
+
+
+
+```
+
+#I want to identify which columns in the Data Frame the have  zero value and list those columns.
+
+```{r}
+# Assuming your DataFrame is named df
+
+# Initialize an empty vector to hold the names of columns with at least one zero value
+columns_with_zeros <- c()
+
+# Loop through each column in the DataFrame
+for (column_name in names(Raw_Potage_data)) {
+  # Check if the column has any zero values
+  if (any(Raw_Potage_data[[column_name]] == 0)) {
+    # If so, add the column name to the list
+    columns_with_zeros <- c(columns_with_zeros, column_name)
+  }
+}
+
+# Print the names of columns with at least one zero value
+#print(columns_with_zeros)
+
+```
+
+
+#substitution methods '< DL' values not exceeded approximately 25%
+This code improves geochemical data quality by converting detection limit values from ppm to weight percent, and then replacing zero entries—often indicative of below-detection measurements—with half the detection limit (DL/2), following established practices in geochemistry (Reimann, C., & Filzmoser, P. (2000) and Farnham, I. M., Singh, A. K., Stetzenbach, K. J., & Johannesson, K. H. (2002)). For selected elements, zeros are alternatively replaced with the average of the nearest non-zero values to preserve local continuity in the dataset.
+
+```{r}
+
+
+# Define your elements in ppm
+elements_ppm <- c(
+  Al_wt_ppm = 1000,
+  Ti_wt_ppm = 20,
+  Mg_wt_ppm = 6000,
+  P_wt_ppm = 400
+)
+
+# Convert ppm to percentage
+elements_percentage <- elements_ppm / 10000
+
+# Rename the elements to reflect the change in units
+names(elements_percentage) <- sub("ppm", "%", names(elements_percentage))
+
+# Print the converted values
+print(elements_percentage)
+
+
+
+# Half of the specified values
+values <- c(
+  'Al_wt%' = 0.100 / 2,
+  'Ti_wt%' = 0.002 / 2,
+  'Mg_wt%' = 0.600 / 2,
+  'P_wt%' = 0.040 / 2
+)
+
+# Replace zeros with half values
+for (col_name in names(values)) {
+  Raw_Potage_data[[col_name]][Raw_Potage_data[[col_name]] == 0] <- values[col_name]
+}
+
+# Print the updated data frame
+print(Raw_Potage_data)
+
+
+
+#To replace zeros in the K_wt% and Fe_wt% columns of your DataFrame with the average of the non-zero values immediately before and after each zero, you can use a slightly more complex approach. This process involves iterating through each specified column and for each zero value found, calculating the average of the nearest non-zero values before and after it, and then replacing the zero with this average.
+
+# Function to replace zeros with the average of the nearest non-zero values before and after
+replace_zeros_with_avg <- function(column) {
+  n <- length(column)
+  last_observed <- NA  # Initialize variable to hold the last observed non-zero value
+  
+  for (i in 1:n) {
+    if (!is.na(column[i]) && column[i] != 0) {
+      last_observed <- column[i]  # Update last observed non-zero value
+    } else if (column[i] == 0) {
+      # Check explicitly for zeros
+      # Initialize variables to store the indices of the non-zero values before and after the zero
+      prev_index <- NA
+      next_index <- NA
+      
+      # Find the index of the previous non-zero value
+      for (j in (i - 1):1) {
+        if (!is.na(column[j]) && column[j] != 0) {
+          prev_index <- j
+          break
+        }
+      }
+      
+      # Find the index of the next non-zero value
+      for (j in (i + 1):n) {
+        if (!is.na(column[j]) && column[j] != 0) {
+          next_index <- j
+          break
+        }
+      }
+      
+      # Calculate the average if both prev_index and next_index are not NA
+      if (!is.na(prev_index) && !is.na(next_index)) {
+        column[i] <- mean(c(column[prev_index], column[next_index]), na.rm = TRUE)
+      } else if (!is.na(last_observed)) {
+        # Replace with the last observed non-zero value if no non-zero neighbors
+        column[i] <- last_observed
+      }
+      # If last_observed is still NA, it means there were no previous non-zero values,
+      # and the current zero cannot be replaced. This case needs specific handling based on data characteristics.
+    }
+  }
+  
+  return(column)
+}
+
+
+
+# Apply the function to the specified columns
+Raw_Potage_data$'K_wt%' <- replace_zeros_with_avg(Raw_Potage_data$'K_wt%')
+Raw_Potage_data$'Fe_wt%' <- replace_zeros_with_avg(Raw_Potage_data$'Fe_wt%')
+Raw_Potage_data$'U_ppm' <- replace_zeros_with_avg(Raw_Potage_data$'U_ppm')
+Raw_Potage_data$'Th_ppm' <- replace_zeros_with_avg(Raw_Potage_data$'Th_ppm')
+
+
+
+# Print the updated data frame to confirm changes
+print(Raw_Potage_data)
+
+
+# Trace elements
+
+# Extended half of the specified values including new columns
+values <- c(
+  'Mo_ppm' = 3 / 2,
+  'V_ppm' = 20 / 2,
+  'Cu_ppm' = 15 / 2,
+  'Zn_ppm' = 15 / 2,
+  'Rb_ppm' = 3 / 2,
+  'Zr_ppm' = 3 / 2,
+  'Pb_ppm' = 10 / 2
+)
+
+# Replace zeros with half values for both the original and new columns
+for (col_name in names(values)) {
+  if (col_name %in% names(Raw_Potage_data)) {
+    # Check if the column exists in the data frame
+    Raw_Potage_data[[col_name]][Raw_Potage_data[[col_name]] == 0] <- values[col_name]
+  }
+}
+
+# Print the updated data frame
+#print(Raw_Potage_data)
+
+write.csv(Raw_Potage_data)
+
+```
+
+
+# If you want to identify which columns in your DataFrame have at least one zero value after substitutions 
+
+```{r}
+# Assuming your DataFrame is named df
+
+# Initialize an empty vector to hold the names of columns with at least one zero value
+columns_with_zeros <- c()
+
+# Loop through each column in the DataFrame
+for (column_name in names(Raw_Potage_data)) {
+  # Check if the column has any zero values
+  if (any(Raw_Potage_data[[column_name]] == 0)) {
+    # If so, add the column name to the list
+    columns_with_zeros <- c(columns_with_zeros, column_name)
+  }
+}
+
+# Print the names of columns with at least one zero value
+#print(columns_with_zeros)
+
+```
+
+
+# Adding formation top
+```{r}
+
+
+# Add an empty 'Formation' column
+Raw_Potage_data$Formation <- NA
+
+# Update 'Formation' column based on depth ranges
+Raw_Potage_data$Formation[Raw_Potage_data$Depth_ft >= 6141.0 &
+                            Raw_Potage_data$Depth_ft <= 6335] <- "Utica FM"
+Raw_Potage_data$Formation[Raw_Potage_data$Depth_ft > 6335 &
+                            Raw_Potage_data$Depth_ft <= 6444] <- "Point Pleasant FM"
+Raw_Potage_data$Formation[Raw_Potage_data$Depth_ft > 6444 &
+                            Raw_Potage_data$Depth_ft <= 6474] <- "Trenton"
+
+
+# View the updated DataFrame
+head(Raw_Potage_data)
+names(Raw_Potage_data)
+# That are data that hase formation toped picked
+write.csv(Raw_Potage_data, "Part_clean_Potage.csv")
+
+```
+
+
+# Check out the summary statistics for each column
+
+```{r}
+
+# Exclude 'Depth_ft' and 'Formation' columns
+Potage_data_summary <- Raw_Potage_data[, !names(Raw_Potage_data) %in% c("Depth_ft", "Formation", "Chemofacies")] %>%
+  summary()  # or any other summary function you'd like to use
+
+Potage_data_summary %>%
+  kable(caption = "Summary Statistics for KV2") %>%
+  kable_styling(
+    full_width = FALSE,
+    latex_options = "scale_down",
+    bootstrap_options = c("striped", "hover"),
+    row_label_position = 'c',
+    font_size = 10,
+    # Adjust font size as needed
+    position = 'center'
+  ) %>%
+  kable_classic(full_width = FALSE)
+
+
+
+
+```
+
+
+
+
+#  Kaiser-Meyer-Olkin statistic and Bartlett sphericity test
+
+Performing the Kaiser-Meyer-Olkin statistic and Bartlett sphericity test" refers to two specific statistical tests used to assess the appropriateness and quality of the data for conducting Principal Component Analysis (PCA). These tests are typically performed before proceeding with PCA to ensure the data is suitable for such analysis. Let's break down what each test signifies:
+
+Kaiser-Meyer-Olkin (KMO) Statistic:
+
+The KMO statistic measures the sampling adequacy for each variable in the dataset as well as for the complete model. It evaluates whether the partial correlations among variables are small; if so, this implies that the variables share something in common, which PCA can then uncover.
+KMO values range between 0 and 1. A value closer to 1 indicates that the patterns of correlations are relatively compact, and PCA is likely to be meaningful. Generally, a KMO value greater than 0.6 is considered acceptable.
+Bartlett's Test of Sphericity:
+
+This test checks the hypothesis that the correlation matrix is an identity matrix, which would mean that variables are unrelated and PCA is unsuitable. In other words, it tests whether or not the observed variables inter-correlate at all, or if the correlation is an identity matrix.
+A significant test result (small p-value, typically less than 0.05) indicates that the correlation matrix is not an identity matrix and that the data is suitable for PCA.
+In the context of your statement, these tests are used to ensure the robustness of PCA. Robustness here refers to the reliability and validity of PCA results. If the data passes these tests (i.e., has a high KMO statistic and a significant Bartlett's test), it suggests that PCA is a suitable method for analysis, and the results obtained from PCA are more likely to be reliable and meaningful.
+
+```{r}
+# Load the packages
+library(psych)
+library(GPArotation)
+
+
+
+# Assuming you want to exclude the 'Depth_ft' column
+Raw_Potage_data <- Raw_Potage_data[, !names(Raw_Potage_data) %in% c("Depth_ft", "Formation", "Chemofacies")]
+
+# Standardize the data
+Potage_standardized <- scale(Raw_Potage_data)
+
+# Kaiser-Meyer-Olkin (KMO) Test
+Potage_kmo_result <- KMO(Potage_standardized)
+
+# Bartlett's Test of Sphericity
+Potage_bartlett_result <- cortest.bartlett(Potage_standardized)
+
+# Print the results
+print(Potage_kmo_result)  # A KMO value closer to 1 suggests better suitability for PCA
+print(Potage_bartlett_result)  # For Bartlett's test, a significant p-value (< 0.05) indicates suitability for PCA
+```
+
+#Result
+The results from the Kaiser-Meyer-Olkin (KMO) test and Bartlett's Test of Sphericity provide important insights into the suitability of your data for PCA.
+
+Kaiser-Meyer-Olkin (KMO) Test:
+
+Overall MSA (Measure of Sampling Adequacy): The overall MSA value is 0.87, which is considered very good. An MSA value above 0.8 indicates that the dataset is well-suited for PCA. This suggests that the correlations between variables are sufficiently strong for PCA.
+MSA for Each Item: The MSA values for individual variables range from 0.18 to 0.97. Most variables have MSA values above 0.6, which is generally considered acceptable, indicating that most variables are suitable for PCA. However, some variables like V_ppm (0.18) and Ca_wt% (0.51) have lower MSA values, suggesting that these variables may not be as well-suited for PCA as others.
+
+Bartlett's Test of Sphericity:
+
+The test yielded a chi-square statistic of 10087.58 with a p-value of 0 (practically zero). The degrees of freedom (df) for the test is 190.
+The significant result (p-value ≈ 0) for Bartlett’s test indicates that the observed correlation matrix is significantly different from an identity matrix. This means that the variables are interrelated and PCA is appropriate for your dataset.
+
+Conclusion:
+Your data is generally suitable for PCA, as indicated by the high overall MSA value and the significant result of Bartlett's test. However, consider the lower MSA values for certain variables, as they might not contribute effectively to PCA. You might explore the reasons behind these low MSA values, such as insufficient data variability or poor correlations with other variables, and decide whether to exclude them from the analysis.
+
+#Before performing Principal Component Analysis (PCA), it's crucial to handle outliers effectively as PCA is sensitive to variance and outliers can significantly skew the results. The choice of outlier detection and handling method depends on the nature of your data and your specific analytical goals. Here are some commonly used methods:
+
+1. Standard Deviation Method:
+
+How it Works: Outliers are identified as observations that lie beyond a certain number of standard deviations (typically 2 or 3) from the mean.
+Best for: Data that is close to normally distributed.
+
+2. Interquartile Range (IQR) Method (Tukey's Fences):
+
+How it Works: Outliers are data points that fall below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR, where Q1 and Q3 are the first and third quartiles, respectively, and IQR is the interquartile range.
+Best for: Data with skewed distributions or when the median is more 
+
+
+Because the data has a skewed distribution, we will use the Interquartile Range (IQR) Method (Tukey's Fences) method
+
+
+#The Interquartile Range (IQR) Method (Tukey's Fences) analysis identified outliers in each variable of the dataset
+
+Here is the box plot of the variables using the Interquartile Range (IQR) Method (Tukey's Fences). In this plot, each horizontal line represents a different variable in your dataset. The box in each line shows the interquartile range (the middle 50% of the data), and the whiskers extend to 1.5 times the IQR from the quartiles, which is typical for identifying outliers with this method.
+
+Outliers, if any, are represented as individual points beyond the whiskers. This visual representation allows you to easily identify variables with potential outliers and the distribution of their data
+
+
+#This R code is creating a combined boxplot to visualize the distribution of multiple variables in the Raw_Potage_data DataFrame. Here's a simple explanation of what each part does:
+
+
+```{r}
+# Assuming your data frame is named df
+# Reshaping the data for plotting
+Potage_long_df <- gather(Raw_Potage_data, key = "Variable", value = "Value")
+
+# Creating individual box plots for each variable
+ggplot(Potage_long_df, aes(x = Variable, y = Value)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(
+    angle = 90,
+    vjust = 0.5,
+    hjust = 1
+  )) +
+  labs(title = "Box Plot of Variables", x = "Variables", y = "Values") +
+  theme_minimal()
+
+```
+
+#This code generates a horizontal boxplot for each variable in the dataset, using color to distinguish variables and highlighting their value distributions and outliers based on the IQR method.
+```{r}
+#Another version
+# Creating a box plot for each variable
+ggplot(Potage_long_df, aes(x = Variable, y = Value)) +
+  geom_boxplot(aes(fill = Variable)) +
+  coord_flip() +  # To make the plot horizontal
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = 'Box Plot of Variables using IQR Method', x = 'Values', y = 'Variables') +
+  theme_minimal()
+
+```
+
+#To identify outliers in each numeric column of a DataFrame (Raw_Potage_data) using the IQR method.
+```{r}
+# Load necessary libraries
+library(readr)
+library(dplyr)
+
+
+
+# Function to calculate IQR and identify outliers
+calculate_iqr_outliers <- function(dataframe) {
+  outliers <- list()
+  for (column in names(dataframe)) {
+    Q1 <- quantile(dataframe[[column]], 0.25)
+    Q3 <- quantile(dataframe[[column]], 0.75)
+    IQR <- Q3 - Q1
+    lower_bound <- Q1 - 1.5 * IQR
+    upper_bound <- Q3 + 1.5 * IQR
+    outliers[[column]] <- dataframe[[column]][dataframe[[column]] < lower_bound |
+                                                dataframe[[column]] > upper_bound]
+  }
+  return(outliers)
+}
+
+# Apply the function to the dataframe
+outliers_by_column <- calculate_iqr_outliers(Raw_Potage_data)
+
+# Display the outliers for each column
+outliers_by_column
+
+```
+
+#Investigating the identified outliers
+
+The Th_ppm value of 1622.14ppm and 275.49ppm is determined to be the only outliers
+This particular values is notably higher than the others, suggesting it's a more extreme outlier
+The fact that it's much higher than the other values could indicate a measurement error, a rare event, or a data entry error, or it might be a legitimate observation that is simply much higher than the typical range for this dataset.
+
+but other data are kepth bc that data is skewed so the  Tukey's Fences outlier method would see extreme values as outlier
+
+the The Zn_ppm value 1622.14ppm and 275.49ppm would be replace by the average the vales above and below it.
+
+
+Replace outliers value with the mean of its neighbors
+
+```{r}
+
+
+# Function to replace a value with the mean of its neighbors
+for_Potage_replace_with_neighbor_mean <- function(dataframe, column, value) {
+  indices <- which(dataframe[[column]] == value)
+  
+  for (idx in indices) {
+    if (idx > 1 && idx < nrow(dataframe)) {
+      mean_value <- mean(c(dataframe[[column]][idx - 1], dataframe[[column]][idx + 1]))
+      dataframe[[column]][idx] <- mean_value
+    }
+  }
+  
+  return(dataframe)
+}
+
+# Replace the two highest values in 'Zn_ppm'
+Raw_Potage_data <- for_Potage_replace_with_neighbor_mean(Raw_Potage_data, 'Zn_ppm', 1622.14)
+Raw_Potage_data <- for_Potage_replace_with_neighbor_mean(Raw_Potage_data, 'Zn_ppm', 275.49)
+
+# Rename the dataframe to no_out
+Clean_Potage_datanoout <- Raw_Potage_data
+
+# Optionally, view the modified data for verification
+print(Clean_Potage_datanoout[which(Clean_Potage_datanoout$Zn_ppm %in% c(1622.14, 275.49)), 'Zn_ppm'])
+
+write.csv(Clean_Potage_datanoout, "Clean_Potage_datanoout.csv")
+
+```
+
+Creating individual box plots for each variable to confirm outlier remover
+
+```{r}
+
+Potage_long_df2 <- gather(Clean_Potage_datanoout, key = "Variable", value = "Value")
+
+# Creating individual box plots for each variable
+ggplot(Potage_long_df2, aes(x = Variable, y = Value)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(
+    angle = 90,
+    vjust = 0.5,
+    hjust = 1
+  )) +
+  labs(title = "Box Plot of Variables After outlier analysis", x = "Variables", y = "Values") +
+  theme_minimal()
+
+```
+
+Calculating correlation matrix between variables in data after outlier remover
+```{r}
+
+# Calculating correlation matrix
+#Exclude 'Depth_ft' and 'Formation' columns
+potage_corr_matrix <- cor(Clean_Potage_datanoout[, !names(Clean_Potage_datanoout) %in% c("Depth_ft", "Formation", "Chemofacies")])
+
+#[, sapply(data, is.numeric)])  # Select only numeric columns
+
+# Melting the correlation matrix
+potage_corr_melted <- melt(potage_corr_matrix)
+
+ggplot(potage_corr_melted, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", value)), size = 3, vjust = 1) +  # Add correlation values
+  scale_fill_gradient2(
+    low = "blue",
+    high = "red",
+    mid = "white",
+    midpoint = 0,
+    limit = c(-1, 1),
+    space = "Lab",
+    name = "Pearson\nCorrelation"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      vjust = 1,
+      hjust = 1
+    ),
+    axis.text.y = element_text(
+      angle = 0,
+      vjust = 1,
+      hjust = 1
+    )
+  ) +
+  labs(x = '', y = '', title = 'Correlation Matrix')
+```

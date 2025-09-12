@@ -1,0 +1,171 @@
+---
+title: "Conduct Kruskal-Wallis Test for each factor scores chapter two"
+author: "Hope & Jeffrey Yarus"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  html_document: default
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  always_allow_html: yes
+---
+
+# Data loading, loading data that contain the factors and chemofacies
+```{r}
+
+# Load necessary libraries
+library(readr)
+library(dplyr)
+library(ggpubr)
+#library(dunn.test)
+library(rstatix)
+
+# Read the data
+data <- read_csv(
+  "/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/PCA_FA_for_two_cores/factorscores_chemofacies.csv"
+)
+
+# Set global option for number formatting
+options(scipen = 999, digits = 4)
+
+# Explore the data
+summary(data)
+
+
+```
+
+
+
+# Calculate median factor scores for each cluster
+
+```{r}
+library(dplyr)
+
+# Ensure dplyr functions are used
+median_scores <- data %>%
+  group_by(chemofacies) %>%
+  dplyr::summarise(across(starts_with("Factor"), ~ round(median(.x, na.rm = TRUE), 2)))
+
+print("Median Factor Scores by chemofacies:")
+print(median_scores)
+
+```
+
+
+# Conduct Kruskal-Wallis Test for each factor
+```{r}
+# Conduct Kruskal-Wallis Test for each factor
+kruskal_results <- lapply(data[1:3], function(factor) {
+  kruskal.test(factor ~ data$chemofacies)
+})
+
+# Display the results with formatted p-values
+print("Kruskal-Wallis Test Results:")
+for (i in 1:3) {
+  factor_name <- names(data)[i]
+  p_value <- kruskal_results[[i]]$p.value
+  formatted_p <- ifelse(p_value < 0.00001, "< 0.00001", format.pval(p_value, digits = 4))
+  cat(
+    factor_name,
+    ": H-statistic =",
+    kruskal_results[[i]]$statistic,
+    ", p-value =",
+    formatted_p,
+    "\n"
+  )
+}
+
+```
+
+
+#Visualize the Distribution:
+
+
+```{r}
+# Ensure p-values are formatted as desired
+options(scipen = 999, digits = 4)
+
+# Define custom color palette for chemofacies
+chemofacies_colors <- c(
+  "1" = "#666666",
+  "2" = "#CC9933",
+  "3" = "#1B9E77",
+  "4" = "#7570B3",
+  "5" = "#66A61E"
+)
+
+# Function to create fancy boxplot
+create_plot <- function(element, facies_colors) {
+  ggplot(data, aes(
+    x = factor(chemofacies),
+    y = get(element),
+    fill = factor(chemofacies)
+  )) +
+    geom_boxplot(
+      outlier.color = "red",
+      outlier.shape = 3,
+      color = "black"
+    ) +
+    stat_boxplot(geom = "errorbar",
+                 width = 0.25,
+                 color = "black") +
+    scale_fill_manual(values = facies_colors) +
+    theme_minimal(base_size = 18) +
+    labs(title = element, y = element, x = "chemofacies") +
+    theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 18),
+      axis.title.y = element_text(size = 18),
+      axis.text.x = element_text(size = 16),
+      axis.text.y = element_text(size = 16),
+      legend.position = "none",
+      panel.background = element_rect(fill = "grey90", color = NA),
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+}
+
+# Visualize the distribution of factor scores across clusters
+for (i in 1:3) {
+  factor_name <- names(data)[i]
+  p <- create_plot(factor_name, chemofacies_colors)
+  
+  # Extract p-value and format it
+  kruskal_test <- kruskal.test(as.formula(paste(factor_name, "~ chemofacies")), data = data)
+  formatted_p <- ifelse(
+    kruskal_test$p.value < 0.00001,
+    "Kruskal-Wallis, p < 0.00001",
+    paste(
+      "Kruskal-Wallis, p =",
+      format.pval(kruskal_test$p.value, digits = 4)
+    )
+  )
+  
+  # Add the formatted p-value to the plot
+  p <- p + annotate(
+    "text",
+    x = 1.5,
+    y = max(data[[factor_name]], na.rm = TRUE) * 0.9,
+    label = formatted_p,
+    size = 5,
+    hjust = 0
+  )
+  
+  print(p)
+}
+
+```
+
+
+
+
+
+
