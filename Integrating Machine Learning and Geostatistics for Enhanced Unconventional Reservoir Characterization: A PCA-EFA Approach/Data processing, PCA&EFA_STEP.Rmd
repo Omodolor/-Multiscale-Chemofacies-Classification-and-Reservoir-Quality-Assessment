@@ -1,0 +1,993 @@
+---
+title: "Appendix B - Core Analysis;Data Pre-Treatment and Exploration for Chapter Three"
+author: ""
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  html_document: default
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  always_allow_html: yes
+---
+
+
+# Loading XRD datasets
+```{r}
+library(readxl)
+# Loading the second sheet
+XRD_Utica <- read_excel("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/chapter_two/Appendix 1_XRD_Data.xlsx", sheet = 2)
+#View(XRD_Utica)
+# Loading the third sheet
+XRD_PP <- read_excel("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/chapter_two/Appendix 1_XRD_Data.xlsx", sheet = 3)
+
+#View(XRD_PP)
+
+```
+
+#  clean data, get unique names in the specific column from each data frame
+```{r}
+# Get unique names in the specific column from each data frame
+unique_XRD_Utica <- unique(XRD_Utica$API)
+unique_XRD_PP <- unique(XRD_PP$API)
+```
+#Find unique names that are present in both df1 and df2
+
+```{r}
+# Find unique names that are present in both df1 and df2
+common_names <- intersect(unique_XRD_Utica, unique_XRD_PP)
+
+# Display the results
+
+print(common_names)
+
+```
+
+#This will create two new data frames, XRD_Utica_common and XRD_PP_common, which contain only the rows where the API column matches the common_names. and aslo selecting the county i want
+```{r}
+library(dplyr)
+# Define the county names to remove
+
+## Subset XRD_Utica with common API values
+XRD_Utica_common <- XRD_Utica[XRD_Utica$API %in% common_names, ]
+
+# Define the county names to remove
+counties_to_remove <- c("HURON", "RICHLAND","LICKING",  "PICKAWAY", "WYANDOT", "MARION", "WARREN")
+
+# Filter out the rows with those county names
+XRD_Utica_common_filtered <- XRD_Utica_common %>%
+  filter(!COUNTYNM %in% counties_to_remove)
+
+## Subset XRD_PP with common API values
+XRD_PP_common <- XRD_PP[XRD_PP$API %in% common_names, ]
+
+# Filter out the rows with those county names
+XRD_PP_common_filtered <- XRD_PP_common %>%
+  filter(!COUNTYNM %in% counties_to_remove)
+
+# View the new data frames
+#View(XRD_PP_common_filtered)
+#View(XRD_Utica_common_filtered)
+names(XRD_PP_common_filtered)
+#names(XRD_PP_common)
+
+
+```
+
+
+
+
+#To keep only the specified columns in the XRD_Utica_common and XRD_PP_common data frames, you can subset the data frames using the column names you're interested in. 
+
+```{r}
+# Define the columns you want to keep
+columns_to_keep <- c("API","Quartz", "Calcite","WH_LONG83", "WH_LAT83", "Dolomite", "K-Feldspar", "Plagioclase", "Total Clay",  "Dolomite%ofTotalCarb", "Total Carb.",  "COUNTYNM", "Organic Carbon", "MBI ((W(Q+F+Cal+Dol))/W(tot))")
+
+# Subset XRD_Utica_common with the selected columns
+XRD_Utica_common_subset <- XRD_Utica_common_filtered[, columns_to_keep]
+
+# Subset XRD_PP_common with the selected columns
+XRD_PP_common_subset <- XRD_PP_common_filtered[, columns_to_keep]
+
+# View the new data frames
+#View(XRD_Utica_common_subset)
+#View(XRD_PP_common_subset)
+
+```
+
+
+#To calculate the average of all variables for each unique API in the XRD_Utica_common_subset and XRD_PP_common_subset data frames, you can group the data by the API column and then compute the mean for each group.
+```{r}
+# Load the necessary library
+library(dplyr)
+
+# Calculate the average of all variables except "WH_LONG83", "WH_LAT83", and "COUNTYNM" for each unique API
+XRD_Utica_avg <- XRD_Utica_common_subset %>%
+  group_by(API) %>%
+  dplyr::summarise(
+    across(-c(WH_LONG83, WH_LAT83, COUNTYNM), mean, na.rm = TRUE),  # Calculate average for all other variables
+    WH_LONG83 = first(WH_LONG83),  # Retain the first value of WH_LONG83
+    WH_LAT83 = first(WH_LAT83),    # Retain the first value of WH_LAT83
+    COUNTYNM = first(COUNTYNM)     # Retain the first value of COUNTYNM
+  )
+
+# View the resulting data frame
+#View(XRD_Utica_avg) 
+
+
+# Calculate the average of all variables except "WH_LONG83", "WH_LAT83", and "COUNTYNM" for each unique API
+XRD_PP_avg <- XRD_PP_common_subset %>%
+  group_by(API) %>%
+  dplyr::summarise(
+    across(-c(WH_LONG83, WH_LAT83, COUNTYNM), mean, na.rm = TRUE),  # Calculate average for all other variables
+    WH_LONG83 = first(WH_LONG83),  # Retain the first value of WH_LONG83
+    WH_LAT83 = first(WH_LAT83),    # Retain the first value of WH_LAT83
+    COUNTYNM = first(COUNTYNM)     # Retain the first value of COUNTYNM
+  )
+
+# View the resulting data frame
+#View(XRD_PP_avg) 
+
+
+```
+
+
+#The code is preparing two cleaned datasets (XRD_Utica_no_NA and XRD_PP_no_NA) by removing rows that have missing values in the K-Feldspar column. These cleaned datasets can then be used for further analysis, ensuring that all rows in the K-Feldspar column contain valid data.
+
+```{r}
+# Load the necessary library
+library(dplyr)
+
+# Subset XRD_Utica_common_subset excluding rows with NA in K-Feldspar
+XRD_Utica_no_NA <- XRD_Utica_avg %>%
+  filter(!is.na(`K-Feldspar`))
+
+# Subset XRD_PP_common_subset excluding rows with NA in K-Feldspar
+XRD_PP_no_NA <- XRD_PP_avg %>%
+  filter(!is.na(`K-Feldspar`))
+
+# View the new data frames
+
+#View(XRD_Utica_no_NA)
+#View(XRD_PP_no_NA)
+
+
+```
+
+
+
+#Loading TOC DATA
+```{r}
+library(readxl)
+# Loading the second sheet
+TOC <- read_excel("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/chapter_two/Appendix 5_TOC.xlsx")
+
+# Filter the rows where Unit column has values "UTCA" or "PNPL"
+filtered_TOC <- TOC %>%
+  filter(Unit %in% c("UTCA", "PNPL"))
+
+# View the filtered data frame
+#View(filtered_TOC)
+```
+
+
+
+#To create two separate data frames from the common_values data frame based on the values in the Unit column (UTCA and PNPL), 
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Create a data frame for rows where Unit is "UTCA"
+common_values_UTCA <- filtered_TOC %>%
+  filter(Unit == "UTCA")
+
+# Create a data frame for rows where Unit is "PNPL"
+common_values_PNPL <- filtered_TOC %>%
+  filter(Unit == "PNPL")
+
+# View the resulting data frames
+#View(common_values_UTCA)
+#View(common_values_PNPL)
+
+```
+
+
+# Calculate the average of Organic C% for each unique API Number and keep other variables unchanged
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Calculate the average of Organic C% for each unique API Number and keep other variables unchanged
+Utica_avg <- common_values_UTCA %>%
+  group_by(`API Number`) %>%
+ dplyr::summarise(
+    `Organic C%` = mean(`Organic C %`, na.rm = TRUE),
+    across(-`Organic C%`, ~ first(.))
+  )
+
+# View the resulting data frame
+#View(Utica_avg)
+
+```
+
+
+#Calculate the average of Organic C% for each unique API Number and keep other variables unchanged
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Calculate the average of Organic C% for each unique API Number and keep other variables unchanged
+PP_avg <- common_values_PNPL %>%
+  group_by(`API Number`) %>%
+ dplyr::summarise(
+    `Organic C%` = mean(`Organic C %`, na.rm = TRUE),
+    across(-`Organic C%`, ~ first(.))
+  )
+
+# View the resulting data frame
+#View(PP_avg)
+
+```
+
+#Create a new data frame with matching API Number from PP_avg and API from XRD_Utica_no_NA
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Create a new data frame with matching API Number from Utica_avg and API from XRD_Utica_no_NA
+Utica_matched_df <- inner_join(Utica_avg, XRD_Utica_avg, by = c("API Number" = "API")) %>%
+   dplyr::select(`API Number`, `Organic C%`)
+
+# View the resulting data frame
+#View(Utica_matched_df)
+
+
+```
+
+#Add the Organic C% values from matched_df to XRD_Utica_no_NA based on matching API and API Number
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Add the Organic C% values from matched_df to XRD_Utica_no_NA based on matching API and API Number
+XRD_Utica_avg <- XRD_Utica_avg %>%
+  left_join(dplyr::select(Utica_matched_df, `API Number`, `Organic C%`), by = c("API" = "API Number"))
+
+# View the updated data frame with the new Organic C% column
+#View(XRD_Utica_avg)
+
+```
+
+#Create a new data frame with matching API Number from PP_avg and API from XRD_Utica_no_NA
+
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Create a new data frame with matching API Number from PP_avg and API from XRD_Utica_no_NA
+PP_matched_df <- inner_join(PP_avg, XRD_PP_avg, by = c("API Number" = "API")) %>%
+  dplyr::select(`API Number`, `Organic C%`)
+
+# View the resulting data frame
+#View(PP_matched_df)
+
+```
+
+
+#Add the Organic C% values from matched_df to XRD_PP_no_NA based on matching API and API Number
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Add the Organic C% values from matched_df to XRD_Utica_no_NA based on matching API and API Number
+XRD_PP_avg <- XRD_PP_avg %>%
+  left_join(dplyr::select(PP_matched_df, `API Number`, `Organic C%`), by = c("API" = "API Number"))
+
+# View the updated data frame with the new Organic C% column
+#View(XRD_PP_avg)
+
+```
+
+#Get map data for Ohio
+```{r}
+library(ggplot2)
+library(maps)
+
+# Get map data for Ohio
+ohio_map <- map_data("county", "ohio")
+
+# Create plot with county names displayed
+p <- ggplot() + 
+  geom_polygon(data = ohio_map, aes(x = long, y = lat, group = group),
+               fill = NA, color = "black") +
+  geom_point(data = XRD_PP_avg, aes(x = WH_LONG83, y = WH_LAT83, color = COUNTYNM), size = 2) +
+  geom_text(data = XRD_PP_avg, aes(x = WH_LONG83, y = WH_LAT83, label = COUNTYNM),
+            vjust = -0.5, hjust = 0.5, size = 3, color = "black") +  # Adjust vjust and hjust to position the labels
+  labs(title = "Distribution of Data Points in Ohio", x = "Longitude", y = "Latitude") +
+  theme_bw()
+
+# Display plot
+p
+```
+
+
+
+#Ohio_Map_Distribution.png
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(maps)
+library(tools)
+
+# Get map data for Ohio
+ohio_map <- map_data("county", "ohio")
+
+# List of counties to include
+selected_counties <- c("ASHTABULA", "CARROLL", "COLUMBIANA", "COSHOCTON", "GEAUGA", 
+                       "HARRISON", "HOCKING", "NOBLE", "PORTAGE", "STARK", "TRUMBULL", 
+                       "TUSCARAWAS", "WASHINGTON")
+
+# Calculate centroids of counties for labels
+county_centroids <- ohio_map %>%
+  group_by(subregion) %>%
+  summarize(long = mean(range(long)), lat = mean(range(lat))) %>%
+  filter(toupper(subregion) %in% selected_counties) %>%  # Filter only selected counties
+  mutate(subregion = toTitleCase(subregion))  # Capitalize first letter of each word
+
+# Create plot with appropriate projection for Ohio
+p <- ggplot() + 
+  geom_polygon(data = ohio_map, aes(x = long, y = lat, group = group),
+               fill = NA, color = "black") +
+  geom_point(data = XRD_PP_avg, aes(x = WH_LONG83, y = WH_LAT83), size = 2, color = "black") + # Plot points
+  geom_text(data = county_centroids, aes(x = long, y = lat, label = subregion),
+            vjust = 0.5, hjust = 0.5, size = 2.5, color = "black") +  # Use centroids for selected counties
+  labs(title = "", x = "Longitude", y = "Latitude") +
+  theme_bw() + 
+  theme(
+    panel.border = element_blank(), # Remove the box or frame around the map
+    legend.position = "none"       # Optionally remove the legend
+  ) +
+  coord_map("mercator")  # Use map projection for proper dimensions
+
+# Save the plot
+ggsave(filename = "Ohio_Selected_Counties_Corrected.png", 
+       plot = p,       # Use the corrected plot
+       height = 6,     # Adjust height
+       width = 6,      # Adjust width to keep proportions correct
+       dpi = 300,      # High-resolution output
+       units = "in")   # Specify units (inches)
+
+# Print the plot
+print(p)
+
+```
+
+
+
+#To replace all instances of 0.0 with NaN fpr PP
+```{r}
+
+XRD_PP_avg <- XRD_PP_avg %>%
+  mutate(across(c("K-Feldspar"), ~ na_if(., 0.0)))
+
+# View the updated data frame
+#View(XRD_PP_avg)
+
+```
+
+#To replace all instances of 0.0 with NaN for Utica
+```{r}
+XRD_Utica_avg <- XRD_Utica_avg %>%
+  mutate(across(c("K-Feldspar"), ~ na_if(., 0.0)))
+
+# View the updated data frame
+#View(XRD_Utica_avg)
+
+```
+
+#for Utica Subset XRD_Utica_avg excluding rows with NA in K-Feldspar and Organic C%
+```{r}
+# Subset XRD_Utica_avg excluding rows with NA in K-Feldspar and Organic C%
+XRD_Utica_no_NA <- XRD_Utica_avg %>%
+  filter(!is.na(`K-Feldspar`) & !is.na(`Organic C%`))
+
+# View the updated data frame
+#View(XRD_Utica_no_NA)
+
+names(XRD_Utica_no_NA)
+
+# Load necessary libraries
+library(dplyr)
+library(ggcorrplot)
+
+# Remove "Organic Carbon" and "MBI ((W(Q+F+Cal+Dol))/W(tot))" from the data frame
+XRD_Utica_corr_data <- XRD_Utica_no_NA %>%
+  dplyr::select(-`Organic Carbon`, -`COUNTYNM`,  -`WH_LONG83`, -`WH_LAT83`, -`API`)
+
+# Calculate the correlation matrix for the remaining numeric columns
+corr_matrix <- cor(XRD_Utica_corr_data %>% select_if(is.numeric), use = "complete.obs")
+
+
+
+library(corrplot)
+corrplot(corr_matrix, method = "circle", tl.cex = 0.8, number.cex = 0.8, addCoef.col = "black")
+
+
+```
+
+
+# Want to create two separate linear regression models:
+Model 1: Predict Organic C% using Dolomite%ofTotalCarb.
+Model 2: Predict K-Feldspar using Dolomite.
+Utica
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Model 1: Predict Organic C% using Dolomite%ofTotalCarb
+lm_model_organic <- lm(`Organic C%` ~ `Dolomite%ofTotalCarb`, data = XRD_Utica_avg)
+
+# Predict missing values in Organic C%
+predicted_organic <- predict(lm_model_organic, newdata = XRD_Utica_avg)
+
+# Replace NA values in Organic C% with the predicted values
+XRD_Utica_avg$`Organic C%`[is.na(XRD_Utica_avg$`Organic C%`)] <- predicted_organic[is.na(XRD_Utica_avg$`Organic C%`)]
+
+# Model 2: Predict K-Feldspar using Quartz
+lm_model_kfeldspar <- lm(`K-Feldspar` ~ Dolomite, data = XRD_Utica_avg)
+
+# Predict missing values in K-Feldspar
+predicted_kfeldspar <- predict(lm_model_kfeldspar, newdata = XRD_Utica_avg)
+
+# Replace NA values in K-Feldspar with the predicted values
+XRD_Utica_avg$`K-Feldspar`[is.na(XRD_Utica_avg$`K-Feldspar`)] <- predicted_kfeldspar[is.na(XRD_Utica_avg$`K-Feldspar`)]
+
+# View the updated data frame
+#View(XRD_Utica_avg)
+
+# Print summaries for both models
+summary(lm_model_organic)
+summary(lm_model_kfeldspar)
+
+```
+
+#for PP Subset XRD_Utica_avg excluding rows with NA in K-Feldspar and Organic C%
+```{r}
+# Subset XRD_Utica_avg excluding rows with NA in K-Feldspar and Organic C%
+XRD_PP_no_NA <- XRD_PP_avg %>%
+  filter(!is.na(`K-Feldspar`) & !is.na(`Organic C%`))
+
+# View the updated data frame
+#View(XRD_PP_no_NA)
+
+names(XRD_PP_no_NA)
+
+# Load necessary libraries
+library(dplyr)
+library(ggcorrplot)
+
+# Remove "Organic Carbon" and "MBI ((W(Q+F+Cal+Dol))/W(tot))" from the data frame
+XRD_PP_corr_data <- XRD_PP_no_NA %>%
+  dplyr::select(-`Organic Carbon`, -`COUNTYNM`,  -`WH_LONG83`, -`WH_LAT83`, -`API`)
+
+
+# Calculate the correlation matrix for the remaining numeric columns
+corr_matrix_PP <- cor(XRD_PP_corr_data %>% select_if(is.numeric), use = "complete.obs")
+
+
+
+library(corrplot)
+corrplot(corr_matrix_PP, method = "circle", tl.cex = 0.8, number.cex = 0.8, addCoef.col = "black")
+
+
+
+```
+
+#Predict for PP
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Model 1: Predict Organic C% using Calcite
+lm_model_organic_PP <- lm(`Organic C%` ~ Calcite, data = XRD_PP_avg)
+
+# Predict missing values in Organic C%
+predicted_organic_PP <- predict(lm_model_organic_PP, newdata = XRD_PP_avg)
+
+# Replace NA values in Organic C% with the predicted values
+XRD_PP_avg$`Organic C%`[is.na(XRD_PP_avg$`Organic C%`)] <- predicted_organic_PP[is.na(XRD_PP_avg$`Organic C%`)]
+
+# Model 2: Predict K-Feldspar using Total Carb
+lm_model_kfeldspar_PP <- lm(`K-Feldspar` ~ `Plagioclase`, data = XRD_PP_avg)
+
+# Predict missing values in K-Feldspar
+predicted_kfeldspar_PP <- predict(lm_model_kfeldspar_PP, newdata = XRD_PP_avg)
+
+# Replace NA values in K-Feldspar with the predicted values
+XRD_PP_avg$`K-Feldspar`[is.na(XRD_PP_avg$`K-Feldspar`)] <- predicted_kfeldspar_PP[is.na(XRD_PP_avg$`K-Feldspar`)]
+
+# View the updated data frame
+#View(XRD_PP_avg)
+
+# Print summaries for both models
+summary(lm_model_organic_PP)
+summary(lm_model_kfeldspar_PP)
+
+```
+
+#To add Formation
+```{r}
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Create a new column called Formation and set all values to "Utica"
+XRD_PP_avg <- XRD_PP_avg %>%
+  mutate(Formation = "PP")
+
+# View the updated data frame
+#View(XRD_PP_avg)
+
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Create a new column called Formation and set all values to "Utica"
+XRD_Utica_avg <- XRD_Utica_avg %>%
+  mutate(Formation = "Utica")
+
+# View the updated data frame
+#View(XRD_Utica_avg)
+
+```
+
+#Concatenate the two data frames by column names
+```{r}
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Concatenate the two data frames by column names
+combined_df <- bind_rows(XRD_Utica_avg, XRD_PP_avg)
+
+# Renaming the column in the data frame
+colnames(combined_df)[colnames(combined_df) == "MBI ((W(Q+F+Cal+Dol))/W(tot))"] <- "MBI"
+
+# To check if the column was renamed successfully
+head(combined_df)
+
+
+# View the resulting combined data frame
+#View(combined_df)
+names(combined_df)
+```
+
+
+#  Carry out PCA  
+```{r}
+# Load required libraries
+library(psych)    # For factor analysis and rotation
+library(dplyr)    # For data manipulation
+library(pracma)   # For pseudo-inverse function (optional)
+library(ggplot2)  # For visualization
+
+# Exclude unwanted columns
+excluded_columns <- c("API", "COUNTYNM", "Formation", "Organic Carbon", "WH_LAT83", "WH_LONG83")
+FA_df <- combined_df %>%
+  dplyr::select(-all_of(excluded_columns))  # Remove non-numeric or irrelevant columns
+
+# Scale the data
+FA_scaled <- scale(FA_df)  # Standardize the data (mean=0, sd=1)
+
+# Perform PCA
+port.pca <- prcomp(FA_df, center = TRUE, scale = TRUE)  
+
+# Eigenvalues and explained variance
+eigenvalues <- port.pca$sdev^2  # Variance explained by each PC
+var_explained_percent <- (eigenvalues / sum(eigenvalues)) * 100  # Percentage of variance explained
+cum_var_explained_percent <- cumsum(var_explained_percent)  # Cumulative variance explained
+
+
+
+
+
+```
+
+
+# Determine Variance Explained Percent
+
+```{r}
+library(ggplot2)
+
+# Assuming 'port.pca' is your PCA object
+# Calculate the proportion of variance explained by each principal component and convert to percentage
+var_explained_percent <- (port.pca$sdev^2 / sum(port.pca$sdev^2)) * 100
+cum_var_explained_percent <- cumsum(var_explained_percent)
+
+# Create a data frame for plotting
+scree_data <- data.frame(
+  PrincipalComponent = seq_along(var_explained_percent),
+  VarianceExplainedPercent = var_explained_percent,
+  CumulativeVariance = cum_var_explained_percent
+)
+
+# Create the Scree plot with individual and cumulative variance
+scree_plot <- ggplot(scree_data, aes(x = PrincipalComponent)) +
+  geom_bar(aes(y = VarianceExplainedPercent), stat = "identity", fill = "steelblue", alpha = 0.8) +  # Adjust opacity for visibility
+  geom_line(aes(y = CumulativeVariance), color = "#1B9E77", size = 1.2, linetype = "solid") +  # Line for cumulative variance
+  geom_point(aes(y = CumulativeVariance), color = "#1B9E77", size = 3) +  # Bigger points for cumulative variance
+  theme_minimal() +
+  labs(
+    x = "Principal Component", 
+    y = "Percentage of Variance Explained",
+    title = "Scree Plot"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Bold and centered title
+    axis.title = element_text(size = 14),  # Increase axis labels for readability
+    axis.text = element_text(size = 12),  # Improve axis tick size
+    panel.grid.major = element_line(color = "grey85", size = 0.3),  # Subtle grid lines
+    panel.grid.minor = element_blank()
+  ) +
+  scale_x_continuous(
+    breaks = 1:length(var_explained_percent), 
+    labels = paste0("PC", 1:length(var_explained_percent))
+  )
+
+# Add labels for individual variance (adjusting vertical spacing)
+scree_plot <- scree_plot +
+  geom_text(aes(y = VarianceExplainedPercent, label = sprintf("%.1f%%", VarianceExplainedPercent)),
+            vjust = -0.5, size = 3, fontface = "bold", check_overlap = TRUE)
+
+# Add labels for cumulative variance (placing slightly above points)
+scree_plot <- scree_plot +
+  geom_text(aes(y = CumulativeVariance, label = sprintf("%.1f%%", CumulativeVariance)),
+            vjust = -0.5, color = "black", size = 3, fontface = "bold", check_overlap = TRUE)
+
+# Save high-resolution image for publication
+ggsave("scree_plot.png", plot = scree_plot, dpi = 300, width = 6, height = 4, units = "in")
+
+# Print the Scree plot
+print(scree_plot)
+
+
+```
+
+# Calculate percentage variance explained
+```{r}
+library(ggplot2)
+library(ggfortify)
+
+# Calculate percentage variance explained
+var_explained_percent <- (port.pca$sdev^2 / sum(port.pca$sdev^2)) * 100
+
+# Base PCA plot without grouping or color
+p <- autoplot(port.pca, loadings = FALSE, colour = I("white")) +
+  theme_minimal() +
+  labs(
+    title = "PCA Biplot",
+    x = paste0("Principal Component 1 (", round(var_explained_percent[1], 1), "%)"),
+    y = paste0("Principal Component 2 (", round(var_explained_percent[2], 1), "%)")
+  ) +
+  theme(
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+# Prepare loadings data (for first 2 PCs)
+loadings <- as.data.frame(port.pca$rotation[, 1:2])
+names(loadings) <- c("xend", "yend")
+loadings$x <- 0
+loadings$y <- 0
+
+# Scale arrows for visual clarity
+scale_factor <- 0.4
+loadings$xend <- loadings$xend * scale_factor
+loadings$yend <- loadings$yend * scale_factor
+
+# Add loading vectors to the plot
+p_final <- p +
+  geom_segment(data = loadings, aes(x = x, y = y, xend = xend, yend = yend),
+               arrow = arrow(type = "closed", length = unit(0.1, "inches")),
+               color = "#2b2b2b", inherit.aes = FALSE) +
+  geom_text(data = loadings, aes(x = xend, y = yend, label = rownames(loadings)),
+            vjust = 1.2, hjust = 1.2, size = 3, color = "black", inherit.aes = FALSE)
+
+# Print plot
+print(p_final)
+
+# Save high-res output
+ggsave("PCA_biplot_PC1_PC2.png", p_final, dpi = 600, width = 8, height = 6, units = "in") 
+
+```
+
+
+
+ 
+ 
+# Determing the number of factors and  Calculate eigenvalues (Kaiser)
+
+```{r}
+# Compute the covariance matrix
+covar_matrix <- cov(FA_scaled)
+
+# Calculate eigenvalues
+eigenvalues <- eigen(covar_matrix)$values
+
+
+# Create a bar plot of eigenvalues
+barplot(eigenvalues, col = "#1B9E77", xlab = "Index", ylab = "Eigenvalue", border = NA)
+
+# Add a horizontal line at y=1
+abline(h = 1.0, col = "red", lty = 2)
+```
+
+# Create a barplot for proportion of variance
+```{r}
+# Compute the covariance matrix
+covar_matrix <- cov(FA_scaled)
+
+# Calculate eigenvalues
+eigenvalues <- eigen(covar_matrix)$values
+
+# Total variance
+total_variance <- sum(eigenvalues)
+
+# Proportion of variance explained
+prop_variance <- eigenvalues / total_variance
+
+# Cumulative variance explained
+cum_variance <- cumsum(prop_variance)
+
+# Create a barplot for proportion of variance
+barplot(prop_variance,
+        col = "#1B9E77",
+        xlab = "Principal Component",
+        ylab = "Proportion of Variance Explained",
+        names.arg = paste0("PC", 1:length(prop_variance)),
+        ylim = c(0, 1))
+
+# Add a line at the Kaiser criterion (eigenvalue = 1 equivalent)
+abline(h = 1 / length(eigenvalues), col = "red", lty = 2)
+
+# Print values
+variance_table <- data.frame(
+  Component = paste0("PC", 1:length(eigenvalues)),
+  Eigenvalue = eigenvalues,
+  Proportion = round(prop_variance, 4),
+  Cumulative = round(cum_variance, 4)
+)
+
+print(variance_table)
+
+```
+
+
+# Determing the number of factors and  Calculate eigenvalues (Kaiser)
+
+```{r}
+# Load required library
+library(ggplot2)
+
+# Compute the covariance matrix
+covar_matrix <- cov(FA_scaled)
+
+# Calculate eigenvalues and sort them in descending order
+eigenvalues <- sort(eigen(covar_matrix)$values, decreasing = TRUE)
+
+# Create a dataframe for ggplot
+scree_data <- data.frame(
+  Factor = 1:length(eigenvalues),
+  Eigenvalue = eigenvalues
+)
+
+# Create the refined scree plot
+ggplot(scree_data, aes(x = Factor, y = Eigenvalue)) +
+  geom_point(size = 3, color = "black") +
+  geom_line(color = "black", linewidth = 0.8) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red", linewidth = 0.8) +
+  scale_x_continuous(breaks = scree_data$Factor) +
+  scale_y_continuous(breaks = seq(0, max(eigenvalues), by = 1)) +  # NEW: y-axis ticks at 1-unit intervals
+  theme_minimal() +
+  labs(title = "Scree Plot", x = "Factor Number", y = "Eigenvalue") +
+  theme(
+    panel.grid.major = element_line(color = "grey90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+# Save the plot
+ggsave("scree_plot.png", dpi = 300, width = 6, height = 4, units = "in")
+
+
+
+
+
+```
+
+
+
+# Performing  factor analysis on the entire data sets
+```{r}
+# Load the psych package for factor analysis functions
+library(psych)
+
+# Step 1: Standardize the dataset
+# Scaling ensures that all variables contribute equally by converting them to z-scores
+FA_scaled <- scale(FA_df)
+
+# Step 2: Test the suitability of the dataset for EFA
+
+# 2a. Kaiser-Meyer-Olkin (KMO) Measure of Sampling Adequacy
+# Values > 0.6 suggest that the dataset is suitable for factor analysis
+KMO_result <- KMO(FA_scaled)
+print(KMO_result)
+
+# 2b. Bartlett’s Test of Sphericity
+# Tests whether the correlation matrix significantly differs from the identity matrix
+# A p-value < 0.05 indicates that correlations are sufficiently large for EFA
+cortest_result <- cortest.bartlett(cor(FA_scaled), n = nrow(FA_scaled))
+print(cortest_result)
+
+
+
+
+# Step 3: Determine the number of factors to retain using parallel analysis
+# This compares observed eigenvalues with those obtained from random data
+# Helps avoid over-extraction based on scree plot alone
+fa.parallel(FA_scaled, fa = "fa", n.iter = 100)
+
+# Define number of factors to extract (based on parallel analysis/scree plot)
+num_factors <- 2
+
+# Step 4: Run Exploratory Factor Analysis (EFA)
+# Performs maximum likelihood extraction of 3 factors from the correlation matrix
+# Uses Varimax (orthogonal) rotation to simplify interpretation
+efa_result <- fa(r = cor(FA_scaled), 
+                 nfactors = 2, 
+                 rotate = "varimax", 
+                 fm = "ml")
+
+# Step 5: View the rotated factor loading matrix
+# Each value represents the strength of association between a variable and a factor
+print(efa_result$loadings)
+
+# Step 6: Clean and format the rotated loadings for display
+
+# 6a. Convert loadings to a data frame
+rotated_loadings <- as.data.frame(efa_result$loadings[1:nrow(efa_result$loadings), ])
+
+# 6b. Add variable names as a separate column
+rotated_loadings_df <- rotated_loadings %>%
+  tibble::rownames_to_column("VariableName")
+
+# 6c. Rename columns as Factor1, Factor2, Factor3
+colnames(rotated_loadings_df)[-1] <- c("Factor1", "Factor2")
+
+# 6d. Round all factor loadings to 3 decimal places for readability
+rotated_loadings_df <- rotated_loadings_df %>%
+  mutate(across(starts_with("Factor"), ~ round(.x, 2)))
+
+# 6e. Print the cleaned factor loading table
+cat("Rotated Loadings:\n")
+print(rotated_loadings_df)
+
+# Step 7: Calculate factor scores for each observation
+# These scores represent the position of each sample along the latent factors
+efa_scores <- factor.scores(FA_scaled, efa_result)$scores
+
+factor_scores <- as.data.frame(efa_scores)
+
+# Rename factor scores
+colnames(factor_scores) <- paste0("Factor", seq_len(num_factors))
+
+# Step 8: Combine factor scores with the original (unscaled) data
+# This allows for downstream interpretation and visualization
+FA_combined <- cbind(FA_df, factor_scores)
+
+```
+
+
+
+
+#Function to create bar plots for rotated loadings
+```{r}
+# Function to create bar plots for rotated loadings
+create_plot <- function(rotated_loadings_df, indices, filename) {
+  # Set up the PNG device with larger dimensions and higher resolution
+  png(filename, width = 14, height = 8, units = 'in', res = 400)
+  
+  # Adjust the layout and margins to fit the plots and prevent the labels from being cut off
+  par(mfrow = c(1, length(indices)), mar = c(12, 6, 4, 2), cex.axis = 1.7, cex.lab = 1.7, cex.main = 2.0)
+  
+  for (i in indices) {
+    # Extract the factor name (e.g., "Factor1", "Factor2") based on index
+    factor_name <- paste0("Factor", i)
+    
+    # Extract loadings for the current factor
+    loadings_factor <- rotated_loadings_df[[factor_name]]
+    
+    # Define colors based on the sign of the loadings
+    colors <- ifelse(loadings_factor < 0, "red", "blue")
+    
+    # Plot the loadings with appropriate colors
+    barplot(loadings_factor, 
+            names.arg = rotated_loadings_df$VariableName,  # Add variable names as labels
+            main = factor_name, 
+            ylab = "Loadings", 
+            col = colors, 
+            las = 2,    # Make axis labels perpendicular
+            cex.names = 1.3,  # Adjust label size for readability
+            space = 0.7)  # Increase space between bars to allow better label fitting
+    
+    # Add dotted lines to indicate significant loadings
+    abline(h = c(-0.5, 0.5), col = "darkgreen", lty = 2)
+  }
+  
+  # Turn off the device
+  dev.off()
+}
+
+# Create plots for factors using the rotated loadings data frame
+create_plot(rotated_loadings_df, indices = 1:2, filename = "factors_PCA_1_2.png")
+
+```
+
+
+#You can select specific columns from combined_df (e.g., "WH_LAT83", "WH_LONG83", and "Formation") and then add them to your factor_scores_df
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Step 1: Select specific columns from combined_df
+selected_columns <- combined_df %>%
+  dplyr::select(WH_LAT83, WH_LONG83, Formation)
+
+# Step 2: Add selected columns to factor_scores_df
+# Ensure both data frames have the same number of rows
+factor_scores_combined <- cbind(factor_scores, selected_columns)
+
+# View the updated data frame
+#View(factor_scores_combined)
+
+```
+ 
+ #Create a new data frame for the "Utica" formation &  Create a new data frame for the "PP" formation
+ 
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Create a new data frame for the "Utica" formation
+factor_scores_Utica <- factor_scores_combined %>%
+  filter(Formation == "Utica")
+
+# Create a new data frame for the "PP" formation
+factor_scores_PP <- factor_scores_combined %>%
+  filter(Formation == "PP")
+
+# View the new data frames
+#View(factor_scores_Utica)
+#View(factor_scores_PP)
+
+# Write the Utica data frame to a CSV file
+write.csv(factor_scores_Utica,
+          "factor&PCA_scores_Utica.csv",
+          row.names = FALSE)
+
+# Write the PP data frame to a CSV file
+write.csv(factor_scores_PP, "factor&PCA_scores_PP.csv", row.names = FALSE)
+
+
+```
+

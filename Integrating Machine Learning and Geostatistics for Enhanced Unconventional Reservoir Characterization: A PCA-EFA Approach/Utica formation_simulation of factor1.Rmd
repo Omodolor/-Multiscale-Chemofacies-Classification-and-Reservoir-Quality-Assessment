@@ -1,0 +1,747 @@
+---
+title: "Conditional Simulation for Factor 1 Utica Formation"
+Subtitle: ""
+author: ""
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  html_document: default
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  always_allow_html: yes
+---
+
+
+**Code Chunk 1**: R Packages
+# Loading Packages
+
+```{r include = FALSE}
+library(corrplot)
+library(PerformanceAnalytics)
+library(tidyverse)
+library(fastDummies)
+library(magrittr)
+library(GGally)
+library(ggplot2)
+library(RColorBrewer)
+library(knitr)
+library(ggpubr)
+library(RGeostats)
+library(gridGraphics)
+library(cowplot)
+```
+
+
+```{r}
+library(readr)
+df <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/chapter_two/factor_scores_Utica.csv")
+#View(df)
+
+
+df %<>%
+  mutate(across(matches("F_|L_"), factor))
+df2 <- df %>%
+  dplyr::select(Factor1:WH_LONG83)
+
+df
+```
+
+
+
+## Inputs
+
+### Symbolic variables
+
+```{r}
+xlon <- "WH_LONG83"
+ylat <- "WH_LAT83"
+out_analysis <- "Raw (outlier analysis performed on raw data)"
+property <- "Factor1"
+```
+
+## Data Analytics
+
+#This code helps visualize and separate the outliers from the non-outliers in the dataset, making it easier to analyze data without the influence of extreme values.
+
+
+
+
+
+```{r}
+# Identify and label outliers
+df_outliers <- df %>%
+  mutate(
+    iqr_val = IQR(!!sym(property), na.rm = TRUE),
+    iqr_val_adj = (iqr_val * 1.5),
+    third_q = quantile(!!sym(property), prob = 0.75, na.rm = TRUE),
+    first_q = quantile(!!sym(property), prob = 0.25, na.rm = TRUE),
+    outlier = (!!sym(property)) > (third_q + iqr_val_adj) | 
+              (!!sym(property)) < (first_q - iqr_val_adj)
+  )
+
+# Separate outliers and non-outliers
+df_no_outliers <- df_outliers %>%
+  filter(outlier == FALSE)  # Remove outliers
+
+df_only_outliers <- df_outliers %>%
+  filter(outlier == TRUE)  # Filter out only the outliers
+
+# Plot histogram without outliers and annotate the outliers
+df_no_outliers %>%
+  ggplot(aes(!!sym(property))) +
+  geom_histogram(bins = 7, fill = "blue", alpha = 0.6) +
+  
+  # Plot the outliers as red points on the plot
+  geom_point(data = df_only_outliers, aes(x = !!sym(property), y = 0), color = "red", size = 3) +
+  
+  # Label the outliers with their values
+  geom_text(data = df_only_outliers, aes(x = !!sym(property), y = 0, label = !!sym(property)),
+            vjust = -1, color = "red", size = 3) +
+  
+  labs(title = "Histogram of Property with Outliers Highlighted", x = "Property", y = "Count") +
+  theme_minimal()
+
+# View the new dataframe without outliers
+print(df_no_outliers)
+
+
+```
+#This modified code is attempting to adjust how outliers are identified and visualized by decreasing the threshold for detecting outliers, allowing more values to be treated as outliers.
+
+the iqr_val_adj (adjusted IQR) is now set to iqr_val * 1 instead of 1.5. This means the range for detecting outliers is smaller, so more values are likely to be classified as outliers.
+
+```{r}
+# Create a new dataframe without outliers
+df_no_outliers <- df %>% # we trying to increase the outlier
+  mutate(
+    iqr_val = IQR(!!sym(property), na.rm = TRUE),
+    iqr_val_adj = (iqr_val * 1),
+    third_q = quantile(!!sym(property), prob = 0.75, na.rm = TRUE),
+    first_q = quantile(!!sym(property), prob = 0.25, na.rm = TRUE),
+    outlier = (!!sym(property)) > (third_q + iqr_val_adj) |
+              (!!sym(property)) < (first_q - iqr_val_adj)
+  ) %>%
+  filter(outlier == FALSE)  # Remove the outliers
+
+# View the new dataframe without outliers
+print(df_no_outliers)
+
+
+# Plot the histogram
+df_no_outliers %>%
+  ggplot(aes(!!sym(property))) +
+  geom_histogram(bins = 7, fill = "blue", alpha = 0.6)
+
+
+```
+
+```{r}
+
+```
+
+
+## Convert to Database for RGeostats Functions
+
+In order to use the functions present in RGeostat, we need to convert the data into an S4 database object. Below we are defining two databases, where one contains the outlier (db) and the other does not (db_noout.db)
+
+```{r}
+
+# creating a database with the outlier
+db_without.db <-
+  df %>%
+  dplyr::select(-Formation) %>% 
+  #filter(outlier == FALSE) %>%  # When FALSE, outliers will be "filtered out."
+  db.create() %>%
+  db.locate(c(xlon, ylat), "x")%>%
+  db.locate(names = property, loctype = "z")
+
+db_without.db@locators 
+
+# Creating databases with no outliers
+db_noout.db <-
+  df_no_outliers %>%
+  dplyr::select(-Formation) %>% 
+  #filter(outlier == FALSE) %>%  # When FALSE, outliers will be "filtered out."
+  db.create() %>%
+  db.locate(c(xlon, ylat), "x")%>%
+  db.locate(names = property, loctype = "z")
+
+db_noout.db@locators 
+
+
+```
+
+
+
+
+
+## Basemap plotting
+
+We can now plot the data on a base-map to see where the samples are located and what values each sample takes on
+
+```{r}
+
+
+db.plot(
+ db_without.db,                                  # Your database object
+  name.color = property,                # Color by the property column
+  pch = 19, # Plot type
+  pos.legend = 1,  # Legend position
+  cex = 0.5,   # Point size
+  xlab = "Longitude", # X-axis label  
+  ylab = "Latitude",# Y-axis label
+  asp = 1,             # Aspect ratio
+  xlim = c(-82, -80),                # Adjust these limits to fit your data and the map
+  ylim = c(38.5, 42.5),   # Adjust these limits to fit your data and the map
+  title = paste("Basemap Color-coded by Factor1"))
+
+# # Step 2: Overlay the Ohio map on the same plot using the map function
+library(maps)
+
+# Overlay the Ohio map (using map function from maps package) 
+ p <- map('county', 'ohio', add = TRUE, col = "black", lwd = 1.2)  # Use add=TRUE to overlay
+#, 
+ 
+ print(p)
+ 
+ 
+
+```
+
+
+
+
+
+## Neighborhood Design
+### Unique neighborhood - Create a neiborhood that uses all the data
+
+In the chunk below, we're going to create a unique neighborhood using function neigh.create() with type "0" for Unique Neighborhood and nidm = 2 for 2-Space Dimensions
+
+```{r}
+neigh.unique <- 
+  neigh.create(
+    type = 0, 
+    ndim = 2)
+neigh.unique
+```
+
+Extract the Bounding Box of Your Points
+```{r}
+x_min <- min(db_without.db$WH_LONG83)
+x_max <- max(db_without.db$WH_LONG83)
+y_min <- min(db_without.db$WH_LAT83)
+y_max <- max(db_without.db$WH_LAT83)
+
+```
+
+
+## Grid Design
+
+After defining the neighborhood design, we can define our grid. In the db.grid.init() function we are inputting our database containing our data to outline the boundaries of our map. We are also able to define the cell extension with "dcell".
+
+```{r, warning = FALSE}
+dbgrid2 <-
+  db.grid.init(
+    db_without.db,
+    dcell = c(0.03, 0.03),
+    
+    origin = c(x_min, y_min),  # Origin is the lower left of the bounding box
+  extend = c(x_max - x_min, y_max - y_min)  # Define grid size based on the bounding box
+  )
+migrate(
+  dbin = db_without.db,
+  dbout = dbgrid2,
+  names = c("F*", "L*", "P*"),
+  radix = ""
+)
+
+```
+
+## Performing the Anamorphosis (Normal Score Transform)
+
+The Normal Score Transform (NST) converts the original variable being analyzed to an equivalent value in Gaussian Space.  It does this through Q-Q plot of the quantiles for the input variable against the quantiles of the Gaussian Distribution.  The Gaussian values are determined using the mean and standard deviation of the input variable which are subsequently plugged into the formula for the Gaussian Distribution.  The qunatiles are calculated from the resulting values.   
+
+```{r, warning = FALSE}
+anam.db <- 
+  anam.fit(
+  db_noout.db,
+  property,
+  nbpoly = 27,
+  title = paste(
+    property, 
+    "Anamorphosis Fitting"), 
+  xlab = "Gaussian (quantile)",
+  ylab = "Raw (quantile)"
+)
+anam.db
+```
+
+
+
+## Calculating the Backtransform for for final simulation maps
+
+```{r warning = FALSE}
+db.anamor <-
+  anam.z2y(
+    db_noout.db, 
+    property, 
+    anam = anam.db)
+
+print(
+  db.anamor, 
+  flag.stats = TRUE, 
+  names = paste(
+    "Gaussian.", 
+    property, 
+    sep = ""))
+```
+
+
+
+
+
+## Variogram and Model Fitting
+
+```{r, warning = FALSE, fig.height = 5, fig.width = 8}
+# Calculate experimental omnidirectional variogram
+vario.omni <- vario.calc(db.anamor, nlag = 12, lag = 0.5)
+
+# Plot the variogram with additional information
+plot(
+  vario.omni,
+  type = "p",          # Use points to show the calculated semivariance
+  pch = 19,            # Set point style
+  npairpt = TRUE,      # Show number of pairs at each lag distance
+  npairdw = FALSE,     # Disable weighted number of pairs
+  title = paste(property, "Experimental Ominidirectional Variogram"),
+  xlab = "Lag distance",
+  ylab = expression(paste("Variance (", gamma, "(h))", sep = ""))
+)
+
+
+# Model Fitting
+
+struct <- c(1, 3)  # Adjust structure to fit your data
+model.gaus.vario <- model.auto(
+  vario.omni,
+  struct = struct,
+  flag.noreduce = TRUE,
+  equal = c("M1V1=0.2", "M2V1=0.75"),  # Adjusted based on observed semivariance
+  #lower = c("M1V1=0.5", "M2V1=0.7", "M2R1=1.0"),
+  #upper = c("M1V1=1.0", "M2V1=1.5", "M2R1=3.0"),
+  # 
+  
+  draw = TRUE,       # Plot the fitted model over the experimental data
+  title = paste(property, "Fitted Model Omnidirectional"),
+  pos.legend = 1,
+  xlab = "Lag distance",
+  ylab = expression(paste("Variance (", gamma, "(h))", sep = ""))
+)
+
+# Print the model fit to check the parameters
+print(model.gaus.vario)
+
+```
+
+
+
+##CONDITIONAL SIMULATION
+
+And finally, having to go through all preparation steps, we can finally perform conditional simulation
+Inspired by 2D.html by D.Renard, We're using the Turning Bands algorithm with 3000 bands to perform a set of 10 simulations.
+
+```{r, warning = FALSE}
+db_sim <-
+  simtub(
+    db.anamor,
+    dbgrid2,
+    model.gaus.vario,
+    neigh.unique,
+    nbsimu = 100,
+    nbtuba = 3000
+  )
+db_sim
+```
+
+
+
+### Backtransform
+
+However, the data is still in Gaussian values. Because of that, it's important to convert them back to raw scale using function anam.y2z(). To help you remember, the function name included Y2Z, so you are going from Y (transformed space) to Z (Original space).
+
+```{r, warning = FALSE}
+db_sim2 <-
+  anam.y2z(db_sim,
+           names = paste("Simu.Gaussian.", property, "*",
+           sep = ""),
+           anam = anam.db)
+db_sim2
+
+
+
+```
+
+
+
+
+## Plotting the Conditional simulation results
+
+Normally, we do not plot the conditional simulation results with contours.  See what happens when you un-comment the last part of the code below which plots the contours.  
+
+
+
+```{r}
+# Adjusting limits to fit the data points more precisely
+plot(
+  db_sim2,
+  name.image = paste("Raw.Simu.Gaussian.", property, ".S5", sep = ""),
+  title = paste(property, "Simulation #5"),
+  pos.legend = 7,
+  cex = .7,
+  asp = 1.05,
+  xlim = c(x_min, x_max),  # Use Min and Max for Longitude
+  ylim = c(y_min, y_max),  # Use Min and Max for Latitude
+  xlab = "Longitude",
+  ylab = "Latitude"
+)
+
+# Overlay your original points
+plot(
+  db_without.db,
+  name.post = property,
+  pch = 20,
+  col = 'white',
+  size = 2,
+  cex = 0.4,
+  add = TRUE
+)
+
+```
+
+# Calculting the mean of all realizations
+
+Note what is inside SimGrid_mean_dir.  It now has all 10 realizations and it has the mean of the realizations.
+
+```{r, warning = FALSE}
+SimGrid_mean_dir <-
+  db.compare(db_sim2, names = "Raw.Simu.Gaussian.*", fun = "mean")
+SimGrid_mean_dir
+```
+# Plotting the mean of 10 realizations
+## Plot the Directinal Mean Map
+
+The following map represents the mean of 10 realizations.  Theory states that if we ran an infinite number of realizations and calculated the mean, the result would be equivalent to the Kriged solution.  10 realizations are probably not enough to perfectly see this relationship, but you can get an idea.  One thing to do would be to calculate the statistics of mean map and check the mean, standard deviation, and variance.  Another thing to do would be to plot the contours from the Kriged map created earlier on top of the mean map created from the 10 realizations. The last part of the code chunk which is currently commented out, will plot the earlier Kriged contours on top of the current mean map from 10 realizations.  Uncomment the last part of the code and run the chunk.  What do you think? 
+
+```{r warning = FALSE}
+plot(
+  SimGrid_mean_dir,
+  title = "Mean of 20 Simulations",
+  pos.legend = 1,
+  cex = .7,
+  asp = 1.05,
+ xlim = c(x_min, x_max),  # Use Min and Max for Longitude
+  ylim = c(y_min, y_max),  # Use Min and Max for Latitude
+  xlab = "Longitude",
+  ylab = "Latitude"
+)
+plot(
+  db_without.db,
+  name.color = property,
+  pch = 20,
+  cex = 0.6,
+  add = TRUE,
+  col = 'black'
+)
+```
+
+
+
+
+
+show the full Ohio map:
+
+```{r}
+library(maps)
+# Determine the geographic range for Ohio
+ohio_map <- map_data("county", "ohio")
+
+# Find the limits for Ohio's longitude and latitude
+ohio_long_range <- range(ohio_map$long)
+ohio_lat_range <- range(ohio_map$lat)
+
+# Adjust the xlim and ylim to restrict the simulation within the Ohio map
+xlim <- ohio_long_range  # Use Ohio map's longitude limits
+ylim <- ohio_lat_range   # Use Ohio map's latitude limits
+
+# Plot the simulation grid with restricted limits
+plot(
+  SimGrid_mean_dir,
+  title = "Mean of 25 Simulations Factor 1: Brittleness & Factorability
+",
+  pos.legend = 1,
+  cex = .7,
+  asp = 1.05,
+  xlim = xlim,  # Set longitude limits to match Ohio map
+  ylim = ylim,  # Set latitude limits to match Ohio map
+  xlab = "Longitude",
+  ylab = "Latitude"
+)
+
+# Overlay the data points from db_noout.db
+plot(
+  db_without.db,
+  name.color = property,
+  pch = 20,
+  cex = 0.6,
+  add = TRUE,
+  col = 'black'
+)
+
+
+
+
+# Overlay the Ohio map fully on top of the plot
+maps::map('county', 'ohio', add = TRUE, col = "black", lwd = 1.2)
+
+```
+
+
+
+
+```{r}
+# Load required libraries
+library(sf)
+library(raster)
+library(sp)
+library(ggplot2)
+library(dplyr)
+library(maps)
+
+
+# Option 2: Create state_map2 using the maps package for Ohio (or modify for your region)
+ohio_map <- map("county", "ohio", fill = TRUE, plot = FALSE)
+
+# Convert map to SpatialPolygons (replacement for maptools)
+library(sf)
+polys <- st_as_sf(map("county", "ohio", fill = TRUE, plot = FALSE))
+ohio_union <- st_union(polys)                  # merge all counties into one polygon
+state_map2 <- as(ohio_union, "Spatial")        # convert to Spatial for raster::mask
+
+
+# Your Kriging data and raster operations
+kriging_df <- SimGrid_mean_dir@items  # Assume this dataframe contains x1, x2, mean
+
+dbpoint <- db_without.db@items  # Assuming db_without.db has WH_LONG83 and WH_LAT83
+
+# Select and convert to spatial points
+spg <- kriging_df %>% dplyr::select(x1, x2, mean)
+coordinates(spg) <- ~ x1 + x2
+gridded(spg) <- TRUE
+rasterDF <- raster(spg)
+
+# Crop and mask using the Spatial object (state_map2)
+if (class(state_map2)[1] == "Extent") {
+  rasterDF_crop <- crop(rasterDF, state_map2)
+} else if (class(state_map2)[1] == "SpatialPolygons" || class(state_map2)[1] == "SpatialPolygonsDataFrame") {
+  rasterDF_crop <- crop(rasterDF, extent(state_map2))
+  rasterDF_masked <- mask(rasterDF_crop, state_map2)
+}
+
+# Convert masked raster to data frame for plotting
+df_masked <- raster::as.data.frame(rasterDF_masked, xy = TRUE)
+colnames(df_masked) <- colnames(kriging_df %>% dplyr::select(x1, x2, mean))
+
+# Create state map using maps package
+state_map <- maps::map('county', 'ohio', exact = FALSE, plot = FALSE, fill = TRUE) %>%
+  fortify() %>%
+  as_tibble()
+
+# Check if column `mean` exists in df_masked_plot before using it
+if (!"mean" %in% colnames(df_masked)) {
+  stop("The column 'mean' does not exist in df_masked.")
+}
+
+# Remove NA values for plotting
+df_masked_plot <- df_masked %>% drop_na()
+
+# Check column names in dbpoint to ensure WH_LONG83 and WH_LAT83 exist
+if (!all(c("WH_LONG83", "WH_LAT83") %in% colnames(dbpoint))) {
+  stop("The columns 'WH_LONG83' and 'WH_LAT83' do not exist in dbpoint.")
+}
+
+# Plot using ggplot and overlay the hard data points from dbpoint
+plot <- ggplot(df_masked_plot, aes(x1, x2)) +
+  geom_tile(aes(fill = mean)) +  # Apply fill aesthetic here for tiles
+  scale_fill_gradientn(colors = rev(hcl.colors(20, "RdYlBu")),
+                       breaks = c(0.24, 0.34, 0.45, 0.55, 0.66, 0.76, 0.86), 
+                       limits = c(0.24, 0.86)) +
+  coord_fixed() +
+  geom_polygon(data = state_map, aes(x = long, y = lat, group = group),
+               color = "black", size = 0.5, fill = NA) +   # Using geom_polygon for state map boundaries
+  # Overlay hard data points from dbpoint
+  geom_point(data = dbpoint, aes(x = WH_LONG83, y = WH_LAT83), color = "black", size = 1.5, pch = 20) +  # Adjust size and color as needed
+  labs(title = paste("Mean of 100 utica_Simulations Factor 1:Brittleness & Factorability"),
+       fill = "Mean Value",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal() +
+  theme(title = element_text(size = 20),
+        text = element_text(size = 16))
+
+# Save the plot
+ggsave(filename = "Utica_mean_Factor1.png", 
+       plot = plot, 
+       height = 6, 
+       width = 16, 
+       dpi = 300, 
+       units = "in")
+
+
+# Print confirmation message
+print(plot)
+
+```
+
+
+# Validation Methods
+Once you have created a map of predicted values, it's important to check to see if the values are accurate. There are a two main ways you can check the accuracy of a kriged map. The first way is to implement cross validation.
+
+## Cross validation 
+Cross validation involves removing one point from the dataset and using the rest of the data for kriging to produce a map. Once the map is produced, you would then use then compare the kriged predicted value at the location where the datapoint was removed to the value that sample has. You would then repeat this till all the datapoints were removed from that dataset once. This is called leave-one-out cross validation. This can also be implemented such that k data points are left out and then assessed.
+
+## Validation
+Another option to check for accuracy is validation. This process involves splitting the data into a training and validation set. The data labeled as training is used for kriging to produce a predicted map. The rest of the data in the validation set is then used to compare against the predicted values 
+
+```{r}
+library(corrplot)
+library(PerformanceAnalytics)
+library(tidyverse)
+library(fastDummies)
+library(magrittr)
+library(GGally)
+library(ggplot2)
+library(RColorBrewer)
+library(knitr)
+library(ggpubr)
+library(RGeostats)
+library(gridGraphics)
+library(here)
+```
+
+
+Now we perform the cross-validation step. This requires the definition of a neighborhood (called *neigh*) that we consider as unique, due to the small neumber of data. Obviously this could be turned into a moving neighborhood if necessary.
+```{r}
+
+
+xvalid(db_without.db, model.gaus.vario, neigh.unique, flag.est=1, flag.std=1)
+```
+
+
+
+The cross-vaidation feature offers several types of outputs, according to the flags:
+
+- *flag.est* tells if the function must return the estimation error Z*-Z (flag.est=1) or the estimation Z* (flag.est=-1)
+
+- *flag.std* tells if the function must return the normalized error (Z*-Z)/S (flag.std=1) or the standard deviation S (flag.std=-1)
+
+For a complete demonstration, all options are used. Note the use of *modify.target*  which explictely leaves the Z-locator on the input variable (i.e. *data*).
+```{r}
+
+id = 2
+# Step 1: Define the target variable (as a column name in the database)
+ # Replace with the actual variable name
+
+# Step 2: Remove existing Z-locator (if it exists)
+db_without.db = db.locerase(db_without.db, "z")
+
+# Step 3: Assign the target variable as the Z-locator
+db_without.db = db.locate(db_without.db, id, "z")
+
+# Step 4: Perform cross-validation (compute estimates and standard deviations)
+db_without.db = xvalid(
+  db_without.db,
+  model = model.gaus.vario,  # Variogram model
+  neigh = neigh.unique,      # Neighborhood definition
+  flag.est = 1,              # Request estimates
+  flag.std = 1,              # Request standard deviations
+  modify.target = FALSE      # Do not overwrite the original target variable
+)
+
+# Step 5: Clean up cross-validation results (remove estimates and standard deviations)
+db_without.db = xvalid(
+  db_without.db,
+  model = model.gaus.vario,
+  neigh = neigh.unique,
+  flag.est = -1,             # Remove estimates
+  flag.std = -1,             # Remove standard deviations
+  modify.target = FALSE
+)
+
+```
+
+
+Let us check the results of the cross-validation of the first sample.
+
+
+
+```{r}
+db_without.db[1,]
+```
+The printed values correspond to the following information:
+
+1 - the sample rank: 1
+
+2 - the sample abscissae $X$: 
+
+3 - the sample coordinate $Y$: 
+
+4 - the data value $Z$: 
+
+5 - the cross-validation estimated value $Z^*$: 
+
+6 - the standard deviation of the cross-validation error $S$: 
+
+7 - the cross-validation error $Z^* - Z$: 
+
+8 - the cross-validation standardized error $\frac{Z^* - Z} {S}$: 
+
+We can also double-check these results by asking a full dump of all information when processing the first sample. The next chunk is commented out as it produces a long output.
+
+```{r}
+
+debug.reference(1)
+dum = xvalid(
+  db_without.db,
+  model = model.gaus.vario,
+  neigh = neigh.unique,
+  flag.est = 1,
+  flag.std = 1,
+  modify.target = FALSE
+)
+
+```
+
+In the next paragraph, we perform the different graphic outputs that are expected after a cross-validation step. They are provided by the function *draw.xvalid* which produces:
+
+1 - the base map of the absolute value of the cross-validation standardized error
+
+2 - the histogram of the cross-validation standardized error
+
+3 - the scatter plot of the standardized error as a function of the estimation
+
+4 - the scatter plot of the true value as a function of the estimation
+
+```{r}
+db_without.db = db.locerase(db_without.db, "z")
+db_without.db = db.locate(db_without.db, id, "z")
+draw.xvalid(db_without.db,mode=1)
+draw.xvalid(db_without.db,mode=2)
+draw.xvalid(db_without.db,mode=3)
+draw.xvalid(db_without.db,mode=4,name.data="Factor1")
+```
