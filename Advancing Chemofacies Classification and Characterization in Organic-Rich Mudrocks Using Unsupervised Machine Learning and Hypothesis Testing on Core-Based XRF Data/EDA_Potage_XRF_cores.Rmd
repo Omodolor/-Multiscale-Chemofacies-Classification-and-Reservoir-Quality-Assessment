@@ -64,12 +64,15 @@ library(sp)
 library(dplyr)
 library(reshape2)
 
-
-
- 
-
-
 ```
+
+# Description
+This example demonstrates reproducible data preprocessing and exploratory analysis of Potage XRF core datasets.  
+It includes steps for data cleaning, integration, missing-value imputation, and initial exploratory visualization in R.  
+The workflow reflects the structured approach used in my research to prepare geochemical datasets for subsequent multivariate and factor analysis.
+
+
+
 # To Checks the current print precision (number of digits shown) and Sets it to 15 so that numbers are displayed with more detail in the console
 
 ```{r}
