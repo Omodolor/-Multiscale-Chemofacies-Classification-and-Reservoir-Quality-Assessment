@@ -64,13 +64,11 @@ library(sp)
 library(dplyr)
 library(reshape2)
 
-
-
- 
-
-
 ```
-
+# Description
+This example demonstrates principal component analysis (PCA) and exploratory factor analysis (EFA) applied to combined XRF datasets from two cores.  
+It illustrates data reduction, latent factor extraction, and chemofacies classification workflows implemented in R.  
+The analysis identifies shared and distinct geochemical patterns between cores, supporting chemofacies interpretation and multivariate model validation.
 
 #Load the required libraries
 ```{r}
