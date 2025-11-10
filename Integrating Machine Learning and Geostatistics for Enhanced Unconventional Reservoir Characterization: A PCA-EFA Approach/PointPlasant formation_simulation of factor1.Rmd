@@ -16,6 +16,10 @@ output:
     toc_depth: '6'
   always_allow_html: yes
 ---
+# Description
+This example demonstrates simulation and cross-validation of multiple factors derived from geochemical and mineralogical datasets of the Point Pleasant Formation.  
+It illustrates workflows for spatial modeling, turning-bands simulation, and leave-one-out cross-validation (LOOCV) implemented in R using *RGeostats* and related packages.  
+The workflow quantifies spatial uncertainty, assesses model reliability, and compares predicted versus observed factor scores to evaluate model performance and guide reservoir quality interpretation.
 
 
 **Code Chunk 1**: R Packages
