@@ -15,6 +15,8 @@ output:
     toc_depth: 6
   always_allow_html: yes
 ---
+# Description
+This example illustrates hypothesis testing on chemofacies groups derived from XRF elemental data.  It demonstrates how nonparametric statistical tests (e.g., Kruskal–Wallis) are used to evaluate differences in median factor scores and elemental concentrations between identified chemofacies.  The workflow integrates reproducible data processing, visualization, and interpretation steps applied in my research.
 
 # Data loading, loading data that contain the factors and chemofacies
 ```{r}
