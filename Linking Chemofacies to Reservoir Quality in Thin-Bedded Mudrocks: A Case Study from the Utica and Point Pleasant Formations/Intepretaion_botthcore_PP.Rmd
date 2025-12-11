@@ -1,0 +1,553 @@
+---
+title: "Interpretation of both core for the PP formation after processing Data Set"
+author: ""
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  html_document: default
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  always_allow_html: yes
+---
+
+
+# Load the required libraries
+```{r}
+# Load the required libraries
+library(plyr)                           # splitting, applying and combining data by Hadley Wickham 
+library(ggplot2)                        # for the custom biplot
+library(lattice)                        # for the matrix scatter plot
+library(corrplot)                       # for the corrplot correlation plot
+library(readr)
+library(corrplot)
+library(corrplot)
+library(RGeostats)
+library(stringr)
+library(shiny)
+library(PerformanceAnalytics)
+library(GGally)
+library(DT)
+library(Cairo)
+library(psych)
+library(markdown)
+library(packHV)
+library(shinyjs)
+library(rmarkdown)
+library(knitr)
+library(gridExtra)
+library(formattable)
+library(data.table)
+library(farver)
+library(tidyverse)
+library(devtools)
+library(RColorBrewer)
+library(MASS)
+library(ggfortify)
+library(factoextra)
+library(nFactors)
+library(FactoMineR)
+library(gapminder)
+library(Matrix)
+library(magrittr) 
+library(kableExtra)
+library(ggforce)
+library(ggrepel)
+library(operator.tools)
+#library(metR)
+library(gstat)
+library(sp)
+library(dplyr)
+library(reshape2)
+
+
+
+ 
+
+
+```
+
+```{r}
+getOption("digits")
+options(digits=15)
+```
+
+
+#PP data for both core
+
+
+```{r}
+Potage_PP_Aligned_XRF_Geochemical_Merged <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/chaper_3/Interpretation_both_core/Potage_PP_Aligned_XRF_Geochemical_Merged.csv")
+
+names(Potage_PP_Aligned_XRF_Geochemical_Merged)
+
+
+
+
+
+Washe_PP_Aligned_XRF_Geochemical_Merged <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/chaper_3/Interpretation_both_core/Washe_PP_Aligned_XRF_Geochemical_Merged.csv")
+
+names(Washe_PP_Aligned_XRF_Geochemical_Merged)
+
+
+#Here’s your updated and final R code to harmonize the column names and concatenate both data frames (Potage_PP_Aligned_XRF_Geochemical_Merged and Washe_PP_Aligned_XRF_Geochemical_Merged) into one:
+
+library(dplyr)
+
+# Step 1: Rename consistent columns in Washe
+Washe_PP_Aligned_XRF_Geochemical_Merged <- Washe_PP_Aligned_XRF_Geochemical_Merged %>%
+  rename(
+    `TOC_(wt.%)` = `TOC (wt.%)`,
+    Total_Porosity = Porosity,
+    `K-Feldspar` = `K_Feldspar`
+    # Keep Dolomite_Fe_Dolomite as-is
+  )
+
+# Step 2: Add missing columns from Potage to Washe with NA values
+missing_cols <- setdiff(names(Potage_PP_Aligned_XRF_Geochemical_Merged), 
+                        names(Washe_PP_Aligned_XRF_Geochemical_Merged))
+
+Washe_PP_Aligned_XRF_Geochemical_Merged[missing_cols] <- NA
+
+# Step 3: Also add Dolomite_Fe_Dolomite to Potage if needed
+if (!"Dolomite_Fe_Dolomite" %in% names(Potage_PP_Aligned_XRF_Geochemical_Merged)) {
+  Potage_PP_Aligned_XRF_Geochemical_Merged$Dolomite_Fe_Dolomite <- NA
+}
+
+# Step 4: Reorder columns in Washe to match Potage
+Washe_PP_Aligned_XRF_Geochemical_Merged <- Washe_PP_Aligned_XRF_Geochemical_Merged %>%
+  dplyr::select(all_of(names(Potage_PP_Aligned_XRF_Geochemical_Merged)))
+
+# Step 5: Add Core identifier and combine
+PP_combined_df <- bind_rows(
+  Potage_PP_Aligned_XRF_Geochemical_Merged %>% mutate(Core = "Potage"),
+  Washe_PP_Aligned_XRF_Geochemical_Merged %>% mutate(Core = "Washe")
+)
+
+
+
+```
+
+
+
+
+
+# Define your variables of interest
+```{r}
+library(dplyr)
+library(tidyr)
+names(PP_combined_df)
+# Define your variables of interest
+elements <- c("Total_Porosity", "MBI", "Quartz", "Total_Clay", "Calcite", "Dolomite", 
+              "TOC_(wt.%)", "Mo_ppm", "V_ppm", "U_ppm")
+
+# Step 1: Convert to long format
+long_data <- PP_combined_df %>%
+  pivot_longer(
+    cols = all_of(elements),
+    names_to = "Element",
+    values_to = "Value"
+  )
+
+# Step 2: Summarize with handling for missing values
+summary_df <- long_data %>%
+  group_by(Element, chemofacies) %>%
+  summarise(
+    n = sum(!is.na(Value)),
+    Median = median(Value, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Formatted = ifelse(
+    n == 0,
+    "NA",
+    paste0(
+      sprintf("%.2f", Median), 
+      " (", 
+      sprintf("%.2f", Min), 
+      "–", 
+      sprintf("%.2f", Max), 
+      ")"
+    )
+  ))
+
+# Step 3: Select and pivot wider
+summary_wide <- summary_df %>%
+  dplyr::select(Element, chemofacies, Formatted) %>%
+  pivot_wider(names_from = chemofacies, values_from = Formatted, names_sort = TRUE)
+
+# View result
+print(summary_wide)
+
+```
+
+
+# PP_Bivariate_Chemofacies_BoldAxesAndLines
+```{r}
+library(ggplot2)
+library(patchwork)
+
+# Define chemofacies color palette
+facies_colors <- c(
+  "1" = "#666666",
+  "2" = "#7570B3",
+  "3" = "#1B9E77",
+  "4" = "#CC9933",
+  "5" = "#66A61E"
+)
+
+# Define base theme with bold axis titles and bold axis lines
+custom_theme <- theme_minimal(base_size = 16) +
+  theme(
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.line = element_line(linewidth = 0.8, color = "black"),
+    legend.position = "none"
+  )
+
+
+# Plot 1: Si vs Al
+p1 <- ggplot(PP_combined_df, aes(x = `Al_wt%`, y = `Si_wt%`, color = factor(chemofacies))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = facies_colors) +
+  labs(title = "Si vs Al", x = "Al", y = "Si") +
+  custom_theme
+
+# Plot 2: Ni vs Al
+p2 <- ggplot(PP_combined_df, aes(x = `Al_wt%`, y = `Ni_ppm`, color = factor(chemofacies))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = facies_colors) +
+  geom_hline(yintercept = 30, linetype = "dashed") +
+  labs(title = "Ni vs Al", x = "Al", y = "Ni") +
+  custom_theme
+
+# Plot 3: Mo vs Al
+p3 <- ggplot(PP_combined_df, aes(x = `Al_wt%`, y = `Mo_ppm`, color = factor(chemofacies))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = facies_colors) +
+  geom_hline(yintercept = 25, linetype = "dashed") +
+  labs(title = "Mo vs Al", x = "Al", y = "Mo") +
+  custom_theme
+
+# Plot 4: Mg vs Ca
+p4 <- ggplot(PP_combined_df, aes(x = `Ca_wt%`, y = `Mg_wt%`, color = factor(chemofacies))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = facies_colors) +
+  geom_hline(yintercept = 10, linetype = "dashed") +
+  labs(title = "Mg vs Ca", x = "Ca", y = "Mg") +
+  custom_theme
+
+# Combine plots in 2x2 layout
+final_plot <- (p1 | p2) / (p3 | p4)
+
+final_plot
+
+# Save the plot
+ggsave(
+  filename = "PP_Bivariate_Chemofacies_BoldAxesAndLines.png",
+  plot = final_plot,
+  width = 12,
+  height = 10,
+  dpi = 600,
+  bg = "white"
+)
+
+```
+
+
+# PP_presentation2_plot
+```{r}
+library(ggplot2)
+
+# Define colors for chemofacies
+facies_colors <- c(
+  "1" = "#666666",
+  "2" = "#7570B3",
+  "3" = "#1B9E77",
+  "4" = "#CC9933",
+  "5" = "#66A61E"
+)
+
+# Custom plotting function using rlang::.data for dynamic column access
+create_plot <- function(element, element_label, facies_colors) {
+  ggplot(PP_combined_df, aes(x = factor(chemofacies), y = .data[[element]], fill = factor(chemofacies))) +
+    geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+    stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+    scale_fill_manual(values = facies_colors) +
+    theme_minimal(base_size = 18) +
+    labs(title = element_label, y = element_label, x = "Chemofacies") +
+    theme(
+      plot.title = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 18, face = "bold"),
+      axis.title.y = element_text(size = 18, face = "bold"),
+      axis.text.x = element_text(size = 16),
+      axis.text.y = element_text(size = 16),
+      axis.line = element_line(linewidth = 0.8, color = "black"),
+      legend.position = "none",
+      panel.background = element_rect(fill = "grey90", color = NA),
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+}
+
+# List of elements to plot (now including MBI)
+elements_to_plot <- list(
+  "Total_Porosity" = "Total Porosity",
+  "TOC_(wt.%)" = "TOC",
+  "Total_Clay" = "Total Clay",
+  "MBI" = "MBI"
+)
+
+# Generate and save plots
+for (element in names(elements_to_plot)) {
+  label <- elements_to_plot[[element]]
+  plot <- create_plot(element, label, facies_colors)
+  print(plot)
+  ggsave(paste0("PP_presentation2_plot_", gsub(" ", "_", label), ".png"),
+         plot = plot, width = 8, height = 6, dpi = 600, bg = "white")
+}
+
+```
+
+
+
+```{r}
+# library(ggplot2)
+# library(ggtern)
+# library(dplyr)
+# 
+# # Rename Feldspar column if needed
+# PP_combined_df <- PP_combined_df %>%
+#   rename(Feldspar = `K-Feldspar`)
+# 
+# # Calculate Tectosilicates before filtering
+# PP_combined_df <- PP_combined_df %>%
+#   mutate(Tectosilicates = coalesce(Quartz, 0) + coalesce(Feldspar, 0))
+# 
+# # Remove duplicated depths (keep first occurrence)
+# PP_combined_df <- PP_combined_df %>%
+#   group_by(Depth) %>%
+#   slice(1) %>%
+#   ungroup() %>%
+#   filter(!duplicated(Depth))
+# 
+# # Ensure chemofacies is a factor
+# PP_combined_df$chemofacies <- factor(PP_combined_df$chemofacies)
+# 
+# # ✅ Filter for complete ternary variables and chemofacies AFTER computing Tectosilicates
+# PP_combined_df <- PP_combined_df %>%
+#   filter(
+#     !is.na(Calcite),
+#     !is.na(Total_Clay),
+#     !is.na(Tectosilicates),
+#     !is.na(chemofacies)
+#   )
+# 
+# # Normalize to ensure ternary sum equals 100
+# PP_combined_df <- PP_combined_df %>%
+#   mutate(total = Calcite + Total_Clay + Tectosilicates) %>%
+#   mutate(
+#     Calcite = (Calcite / total) * 100,
+#     Total_Clay = (Total_Clay / total) * 100,
+#     Tectosilicates = (Tectosilicates / total) * 100
+#   )
+# 
+# # Create ternary plot
+# ternary_plot <- ggtern(data = PP_combined_df,
+#                        aes(x = Calcite, y = Total_Clay, z = Tectosilicates, color = chemofacies)) +
+#   geom_point(size = 2, alpha = 0.85) +
+#   labs(title = "", x = "Calcite", y = "Total Clay", z = "Tectosilicates") +
+#   scale_color_manual(values = c(
+#     "1" = "#666666",
+#     "2" = "#7570B3",
+#     "3" = "#1B9E77",
+#     "4" = "#CC9933",
+#     "5" = "#66A61E"
+#   )) +
+#   theme_minimal(base_size = 16) +
+#   theme(
+#     tern.axis.ticks = element_line(color = "black", linewidth = 1),
+#     tern.axis.line = element_line(color = "black", linewidth = 1.5),
+#     legend.position = "top"
+#   ) +
+#   ggtern::theme_legend_position("topright")
+# 
+# # Print and save
+# print(ternary_plot)
+# ggsave("ternary_plot_PP_combined_df.png", plot = ternary_plot, width = 15, height = 7, dpi = 300, bg = "white")
+
+```
+
+# PP_Boxplot_Chemofacies_BoldAxesAndLines
+```{r}
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+
+# Define chemofacies color palette
+facies_colors <- c(
+  "1" = "#666666",
+  "2" = "#7570B3",
+  "3" = "#1B9E77",
+  "4" = "#CC9933",
+  "5" = "#66A61E"
+)
+
+# Define base theme
+custom_theme <- theme_minimal(base_size = 16) +
+  theme(
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.line = element_line(linewidth = 0.8, color = "black"),
+    legend.position = "none"
+  )
+
+# Plot 1: Total Porosity
+p11 <- ggplot(filter(PP_combined_df, is.finite(Total_Porosity)), 
+              aes(x = factor(chemofacies), y = Total_Porosity, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "Total Porosity", x = "Chemofacies", y = "Total Porosity") +
+  custom_theme
+
+# Plot 2: TOC
+p22 <- ggplot(filter(PP_combined_df, is.finite(`TOC_(wt.%)`)), 
+              aes(x = factor(chemofacies), y = `TOC_(wt.%)`, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "TOC", x = "Chemofacies", y = "TOC") +
+  custom_theme
+
+# Plot 3: Total Clay
+p33 <- ggplot(filter(PP_combined_df, is.finite(Total_Clay)), 
+              aes(x = factor(chemofacies), y = Total_Clay, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "Total Clay", x = "Chemofacies", y = "Total Clay") +
+  custom_theme
+
+# Plot 4: MBI
+p44 <- ggplot(filter(PP_combined_df, is.finite(MBI)), 
+              aes(x = factor(chemofacies), y = MBI, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "MBI", x = "Chemofacies", y = "MBI") +
+  custom_theme
+
+# Combine plots in 2x2 layout
+final_plot <- (p11 | p22) / (p33 | p44)
+final_plot
+
+# Save the combined plot
+ggsave(
+  filename = "PP_Boxplot_Chemofacies_BoldAxesAndLines.png",
+  plot = final_plot,
+  width = 12,
+  height = 10,
+  dpi = 600,
+  bg = "white"
+)
+
+```
+
+
+
+# PP_Factor_Scores_Boxplot_2x2
+```{r}
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+
+# Define chemofacies color palette
+facies_colors <- c(
+  "1" = "#666666",
+  "2" = "#7570B3",
+  "3" = "#1B9E77",
+  "4" = "#CC9933",
+  "5" = "#66A61E"
+)
+
+# Base theme
+custom_theme <- theme_minimal(base_size = 16) +
+  theme(
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.line = element_line(linewidth = 0.8, color = "black"),
+    legend.position = "none"
+  )
+
+# Plot for Factor1 (filtered)
+p1 <- ggplot(filter(PP_combined_df, is.finite(Factor1)), 
+             aes(x = factor(chemofacies), y = Factor1, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "Factor 1", x = "Chemofacies", y = "Factor 1 Score") +
+  custom_theme
+
+# Plot for Factor2 (filtered)
+p2 <- ggplot(filter(PP_combined_df, is.finite(Factor2)), 
+             aes(x = factor(chemofacies), y = Factor2, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "Factor 2", x = "Chemofacies", y = "Factor 2 Score") +
+  custom_theme
+
+# Plot for Factor3 (filtered)
+p3 <- ggplot(filter(PP_combined_df, is.finite(Factor3)), 
+             aes(x = factor(chemofacies), y = Factor3, fill = factor(chemofacies))) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 3, color = "black") +
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+  scale_fill_manual(values = facies_colors) +
+  labs(title = "Factor 3", x = "Chemofacies", y = "Factor 3 Score") +
+  custom_theme
+
+# Blank plot for 4th position
+p4 <- plot_spacer()
+
+# Combine in 2x2 layout with tags
+final_plot <- (p1 | p2) / (p3 | p4) +
+  plot_annotation(tag_levels = 'A')
+
+# Display combined plot
+print(final_plot)
+
+# Save to file
+ggsave(
+  filename = "PP_Factor_Scores_Boxplot_2x2.png",
+  plot = final_plot,
+  width = 16,
+  height = 12,
+  dpi = 600,
+  bg = "white"
+)
+
+
+```
+
+

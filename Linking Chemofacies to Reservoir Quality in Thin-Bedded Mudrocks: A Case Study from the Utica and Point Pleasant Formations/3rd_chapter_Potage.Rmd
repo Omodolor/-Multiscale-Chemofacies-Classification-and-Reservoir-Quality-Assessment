@@ -1,0 +1,722 @@
+---
+title: " Appendix C - Data preparationstep for chapter four Tracker core"
+author: ""
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: 
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 6
+  html_document: default
+  word_document: 
+    toc: yes
+    toc_depth: '6'
+  always_allow_html: yes
+---
+
+# Load the required libraries
+
+```{r}
+# Load the required libraries
+library(plyr)                           # splitting, applying and combining data by Hadley Wickham 
+library(ggplot2)                        # for the custom biplot
+library(lattice)                        # for the matrix scatter plot
+library(corrplot)                       # for the corrplot correlation plot
+library(readr)
+library(corrplot)
+library(corrplot)
+library(RGeostats)
+library(stringr)
+library(shiny)
+library(PerformanceAnalytics)
+library(GGally)
+library(DT)
+library(Cairo)
+library(psych)
+library(markdown)
+library(packHV)
+library(shinyjs)
+library(rmarkdown)
+library(knitr)
+library(gridExtra)
+library(formattable)
+library(data.table)
+library(farver)
+library(tidyverse)
+library(devtools)
+library(RColorBrewer)
+library(MASS)
+library(ggfortify)
+library(factoextra)
+library(nFactors)
+library(FactoMineR)
+library(gapminder)
+library(Matrix)
+library(magrittr) 
+library(kableExtra)
+library(ggforce)
+library(ggrepel)
+library(operator.tools)
+#library(metR)
+library(gstat)
+library(sp)
+library(dplyr)
+library(reshape2)
+
+
+
+ 
+
+
+```
+
+```{r}
+getOption("digits")
+options(digits=15)
+```
+
+#Portage
+#Loading the XRF data for Portage from chapter one 
+
+```{r}
+Data <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/chaper_3/Potage3rd.csv")
+
+Data <- Data %>%
+  rename(Depth = `Depth_ft...1`)
+#To exclude the Chemofacies column from your dataframe Data in R, you can use either of these approaches:
+
+Data_filtered <- dplyr::select(Data,
+  -Chemofacies,
+  -`Depth_ft...45`,
+  -`K/Al`,
+  -`Zn/Al`,
+  -`Si/Ca`,
+  -SGR,
+  -`Sr/Ca`,
+  -`V/Al`,
+  -`Mg/Al`,
+  -`Rb/Al`,
+  -`Si/Al`,
+  -`Ti/Al`,
+  -`Zr/Al`,
+  -`Si/Ti`,
+  -`Cu/Al`,
+  -`Fe/Al`,
+  -`Ni/Al`,
+  -`Mo/Al`,
+  -`S/Al`,
+  -`U/Al`,
+  -`Al_ppm`,
+  -`Core`
+)
+
+# Perfect — if you want to keep only the rows where the Formation column starts with "U" or "P", you can use dplyr::filter() with stringr::str_starts() like this:
+
+Data_filtered2 <- Data_filtered %>%
+  filter(str_starts(Formation, "U") | str_starts(Formation, "P"))
+Data_filtered2
+
+```
+
+split Data_filtered2 into two new data frames based on whether the Formation column starts with "U" or "P".
+```{r}
+library(dplyr)
+library(stringr)
+
+# Rows where Formation starts with "U"
+Data_U <- Data_filtered2 %>%
+  filter(str_starts(Formation, "U"))
+
+write.csv(Data_U, "Potage_xrf_Utica.csv", row.names = FALSE)
+
+# Rows where Formation starts with "P"
+Data_P <- Data_filtered2 %>%
+  filter(str_starts(Formation, "P"))
+
+
+write.csv(Data_P, "Potage_xrf_PP.csv", row.names = FALSE)
+
+```
+
+
+# Read xrd file and calculate  MBI from xrd
+```{r}
+
+XRD_Portage <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/chaper_3/XRD_Portage.csv")
+
+#View(XRD_Portage)
+
+XRD_Portage <- XRD_Portage %>%
+  mutate(
+    MBI = round((Quartz + `K-Feldspar` + Calcite + Dolomite) /
+                (Quartz + Plagioclase + `K-Feldspar` + Calcite + Siderite + Ankerite +
+                 Dolomite + Pyrite + Fluorapatite + Barite + Total_Clay), 2)
+  )
+
+
+# Rows where Formation starts with "U"
+xrd_Data_U <- XRD_Portage %>%
+  filter(str_starts(Formation, "U"))
+
+write.csv(xrd_Data_U, "Potage_xrd_Utica.csv", row.names = FALSE)
+
+# Rows where Formation starts with "P"
+xrd_Data_P <- XRD_Portage %>%
+  filter(str_starts(Formation, "P"))
+
+write.csv(xrd_Data_P, "Potage_xrd_PP.csv", row.names = FALSE)
+
+```
+
+
+# Toc_Portage
+
+```{r}
+Toc_Portage <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/chaper_3/TOC_data_Portage.csv")
+
+#View(Toc_Portage)
+
+
+# Rows where Formation starts with "U"
+Toc_Data_U <- Toc_Portage %>%
+  filter(str_starts(Formation, "U"))
+
+write.csv(Toc_Data_U, "Potage_TOC_Utica.csv", row.names = FALSE)
+
+# Rows where Formation starts with "P"
+Toc_Data_P <- Toc_Portage %>%
+  filter(str_starts(Formation, "P"))
+
+write.csv(Toc_Data_P, "Potage_TOC_PP.csv", row.names = FALSE)
+
+
+```
+
+# Porosity DATA
+
+```{r}
+Porosity_Portage <- read_csv("/mnt/vstor/CSE_MSE_RXF131/staging/sdle/geospatial/core_xrf_xrd/XRF_two_core_in1/chaper_3/1oil and core_potage.csv")
+
+#View(Porosity_Portage)
+
+
+names(Porosity_Portage)
+
+Porosity_Portage <- Porosity_Portage %>%
+  rename(Total_Porosity = `Total Porosity (per off BV)\n`)
+
+Porosity_df <- Porosity_Portage %>%
+  dplyr::select(Depth_ft, Total_Porosity)
+
+# For Utica interval (from 6143.95 to 6253.52)
+Porosity_Utica <- Porosity_df %>%
+  filter(Depth_ft >= 6143.95 & Depth_ft <= 6353.52) 
+
+write.csv(Porosity_Utica, "Potage_Porosity_Utica.csv", row.names = FALSE)
+
+
+# For Point Pleasant (PP) interval (from 6360.37 to 6443.10)
+Porosity_PP <- Porosity_df %>%
+  filter(Depth_ft >= 6360.37 & Depth_ft <= 6443.10)
+
+
+write.csv(Porosity_PP , "Potage_Porosity_PP.csv", row.names = FALSE)
+
+
+
+
+```
+
+#for Utica
+Because XRF data is more detailed and continuous, I used it as the vertical reference. I interpolated my sparse plug-based data — like TOC and porosity — onto the XRF depth intervals. This ensures all properties are aligned at the same depths, which preserves the geological order of the rock layers and allows me to analyze them consistently down the core.
+
+```{r}
+# Load required libraries
+library(readr)
+library(dplyr)
+
+# Load datasets
+xrf_df <- read_csv("Potage_xrf_Utica.csv")
+toc_df <- read_csv("Potage_TOC_Utica.csv")
+porosity_df <- read_csv("Potage_Porosity_Utica.csv")
+xrd_df <- read_csv("Potage_xrd_Utica.csv")
+
+# Rename for consistency
+toc_df <- toc_df %>% rename(Depth = `Depth_(ft)`)
+porosity_df <- porosity_df %>% rename(Depth = Depth_ft)
+xrd_df <- xrd_df %>% rename(Depth = Depth_ft)
+
+# Remove Formation column if present
+xrf_df <- xrf_df[ , !(names(xrf_df) %in% "Formation")]
+toc_df <- toc_df[ , !(names(toc_df) %in% "Formation")]
+xrd_df <- xrd_df[ , !(names(xrd_df) %in% "Formation")]
+
+# Sort all by depth
+xrf_df <- xrf_df %>% arrange(Depth)
+toc_df <- toc_df %>% arrange(Depth)
+porosity_df <- porosity_df %>% arrange(Depth)
+xrd_df <- xrd_df %>% arrange(Depth)
+
+# Interpolate TOC and Porosity
+toc_interp <- approx(toc_df$Depth, toc_df$`TOC_(wt.%)`, xout = xrf_df$Depth, rule = 1)$y
+porosity_interp <- approx(porosity_df$Depth, porosity_df$Total_Porosity, xout = xrf_df$Depth, rule = 1)$y
+
+# Interpolate XRD columns to match XRF depth
+xrd_interp <- data.frame(Depth = xrf_df$Depth)
+for (col in names(xrd_df)) {
+  if (col != "Depth") {
+    xrd_interp[[col]] <- approx(xrd_df$Depth, as.numeric(xrd_df[[col]]), xout = xrf_df$Depth, rule = 1)$y
+  }
+}
+
+# Final merge: keep chemofacies from xrf_df, and add interpolated columns
+aligned_df <- xrf_df %>%
+  mutate(`TOC_(wt.%)` = toc_interp,
+         Total_Porosity = porosity_interp) %>%
+  bind_cols(xrd_interp[ , !(names(xrd_interp) %in% "Depth")])  # ✅ safe base R removal of duplicate Depth
+
+# View result
+head(aligned_df)
+
+# Save to CSV
+write_csv(aligned_df, "Potage_Utica_Aligned_XRF_Geochemical_Merged.csv")
+
+
+```
+
+#the following code is preparint the data for ploting
+```{r}
+
+
+# Assuming you have the following libraries loaded
+library(ggplot2)
+library(reshape2)
+
+# Your new_data_with_clusters dataframe should have the Al_wt% and Si_wt% variables
+# and the Depth_ft variable
+
+# First, melt the data frame so that it is long format for ggplot
+melted_data <- melt(Data_filtered2, id.vars = 'Depth', measure.vars = c("Ca_wt%", "Si_wt%"))
+
+#  "Al_wt%", "Si_wt%", "Mg_wt%",  
+
+# Now, you can split the 'variable' column to separate the variables and well identifiers
+# Note: Assuming your dataframe does not have separate wells and the measurements
+# are in columns Al_wt% and Si_wt%
+melted_data$Var <- gsub("_.*", "", melted_data$variable)
+melted_data$Well <- gsub(".*_", "", melted_data$variable)
+
+# Convert Well to a factor if it's not already
+melted_data$Well <- as.factor(melted_data$Well)
+
+# Now plot with ggplot
+sp <- ggplot(melted_data, aes(x=value, y=Depth, color=Var)) +
+  theme_bw() + 
+  geom_path(aes(linetype=Var)) + 
+  labs(title='') +
+  scale_y_reverse() + 
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) + 
+  # Make the line solid and thicker
+  
+  facet_grid(. ~ Var, scales='free_x')+ # free scales allow each variable to have its own x scale
+  theme(legend.position = "none") # This will remove the legend # free scales allow each variable to have its own x scale
+
+# If you want to see the plot in your R environment
+print(sp)
+
+```
+
+
+
+
+
+
+#The following code is prepar the data for ploting
+```{r}
+# Load required libraries
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+# ========================
+# STEP 1: Prepare DataFrames
+# ========================
+
+# Ensure they are proper tibbles
+Porosity_Portage <- as_tibble(Porosity_Portage)
+Toc_Portage <- as_tibble(Toc_Portage)
+XRD_Portage <- as_tibble(XRD_Portage)
+
+# Rename Depth_ft to Depth and select required columns
+porosity_df <- Porosity_Portage %>%
+  dplyr::rename(Depth = Depth_ft) %>%
+  dplyr::select(Depth, Porosity = Total_Porosity)
+
+toc_df <- Toc_Portage %>%
+  dplyr::rename_with(~ "Depth", contains("Depth")) %>%
+  dplyr::rename(TOC = `TOC_(wt.%)`) %>%
+  dplyr::select(Depth, TOC)
+
+
+mbi_df <- XRD_Portage %>%
+  dplyr::rename(Depth = Depth_ft) %>%
+  dplyr::select(Depth, MBI)
+
+TotalClay_df <- XRD_Portage %>%
+  dplyr::rename(Depth = Depth_ft) %>%
+  dplyr::select(Depth, Total_Clay)
+
+
+
+# Make sure column names are correct
+colnames(porosity_df)
+# Should include "Total_Porosity" and "DEPT"
+
+# Create the plot and store in a different object
+porosity_plot <- ggplot(porosity_df, aes(x = Porosity, y = Depth)) +
+  geom_point(color = "black", size = 1.5) +  
+  geom_path(color = "black") +
+  scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+
+  
+  labs(title = "", x = "", y = "") +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) + 
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10)
+  ) +
+  facet_grid(. ~ "Porosity", scales = 'free_x')
+
+# Now print the plot
+print(porosity_plot)
+
+
+
+# Make sure column names are correct
+colnames(TotalClay_df)
+# Should include "Total_Porosity" and "DEPT"
+
+# Create the plot and store in a different object
+TotalClay <- ggplot(TotalClay_df, aes(x = Total_Clay, y = Depth)) +
+  geom_point(color = "black", size = 1.5) +  
+  geom_path(color = "black") +
+  scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+
+  
+  labs(title = "", x = "", y = "") +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) + 
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10)
+  ) +
+  facet_grid(. ~ "Total_Clay", scales = 'free_x')
+
+# Now print the plot
+print(TotalClay)
+
+
+
+# Make sure column names are correct
+colnames(mbi_df)
+# Should include "Total_Porosity" and "DEPT"
+
+# Create the plot and store in a different object
+MBI_plot <- ggplot(mbi_df, aes(x = MBI, y = Depth)) +
+  geom_point(color = "black", size = 1.5) +  
+  geom_path(color = "black") +
+  
+
+ scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+  labs(title = "", x = "", y = "") +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) + 
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10)
+  ) +
+  facet_grid(. ~ "MBI", scales = 'free_x')
+
+# Now print the plot
+print(MBI_plot)
+
+
+
+# Create the plot and store in a different object
+toc_plot <- ggplot(toc_df, aes(x = TOC, y = Depth)) +
+  geom_point(color = "black", size = 1.5) +  
+  geom_path(color = "black") +
+  
+  scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+
+  
+  labs(title = "", x = "", y = "") +
+   geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) + 
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10)
+  ) +
+  facet_grid(. ~ "TOC", scales = 'free_x')
+
+# Now print the plot
+print(toc_plot)
+
+```
+
+#The following code is prepar the data for ploting
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(patchwork)
+
+
+# Define colors for each cluster
+facies_colors <- c(
+  "1" = "#666666",  # Color for chemofacies 1
+  "2" = "#CC9933",  # Color for chemofacies 2
+  "3" = "#1B9E77",  # Color for chemofacies 3
+  "4" = "#7570B3",  # Color for chemofacies 4
+  "5" = "#66A61E"   # Color for chemofacies 5
+
+)
+
+
+# Define label mapping for display
+chemofacies_labels <- c(
+  "1" = "Detrital Dolomitic",
+  "2" = "Siliceous Argillaceous",
+  "3" = "Mixed Silica-Argillaceous",
+  "4" = "Carbonate-Dominated",
+  "5" = "Molybdenum-Rich Anoxic"
+)
+
+
+# Assuming `new_data_with_clusters` and `melted_data` are already prepared with the appropriate structure
+
+# Define the plot for the chemical data
+chemical_plot <- ggplot(melted_data, aes(x = value, y = Depth, color = Var)) +
+  geom_path(aes(linetype = Var)) +
+  scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+  facet_wrap(~ Var, scales = 'free_x', ncol = 2) + # Assuming you have exactly 2 variables: Al and Si
+  theme_bw() +
+  scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.spacing = unit(0.1, "lines"),
+    panel.border = element_rect(color = "black", fill=NA), # Add border to panels
+    legend.position = "none"
+  )
+
+# Define the plot for the cluster data
+cluster_plot <- ggplot(Data_filtered2, aes(x = factor(1), y = Depth, fill = as.factor(chemofacies))) +
+  geom_tile(width = 1, height = 1) +
+  scale_fill_manual(values = facies_colors, labels = chemofacies_labels, name = "chemofacies") +
+ scale_y_reverse(limits = rev(range(melted_data$Depth, na.rm = TRUE))) +
+  geom_hline(yintercept = 6335, color = "black", linetype = "solid", size = 0.8) +
+  # Make the line solid and thicker
+
+  labs(title = "chemofacies") +  # Add title for cluster panel
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5), # Center the "Cluster" title
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill=NA) # Add border to cluster panel
+  ) +
+  guides(fill=guide_legend(title="chemofacies")) # Ensure cluster legend is titled
+
+
+
+# Combine the plots using patchwork
+combined_plot <- sp + toc_plot + MBI_plot + TotalClay + porosity_plot + cluster_plot +  #chemical_plot
+  plot_layout(widths = c(0.3, 0.1, 0.1, 0.1, 0.1, 0.1)) # Set equal widths for the plots
+
+# Print the combined plot
+print(combined_plot)
+
+
+
+
+
+# Save the combined plot with desired dimensions
+ggsave("combined_chemical_cluster_plot1_Potage.png", combined_plot, width = 10, height = 5, dpi = 300)
+
+```
+
+
+
+
+
+
+
+# Assume facies_colors are defined somewhere in your script as before
+```{r}
+
+library(ggplot2)
+library(gridExtra)
+
+# Assume facies_colors are defined somewhere in your script as before
+facies_colors <- c(
+  "1" = "#666666",  # Color for cluster 1
+  "2" = "#7570B3",  # Color for cluster 2
+  "3" = "#1B9E77",  # Color for cluster 3
+  "4" = "#CC9933",  # Color for cluster 4
+  "5" = "#66A61E"   # Color for cluster 5
+)
+
+# Function to create a more visible and presentation-ready plot
+create_plot <- function(element, facies_colors) {
+  ggplot(aligned_df , aes(x=factor(chemofacies), y=get(element), fill=factor(chemofacies))) +
+    geom_boxplot(outlier.color = "red", outlier.shape = 3, color="black") +
+    stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+    scale_fill_manual(values=facies_colors) +
+    theme_minimal(base_size = 18) +
+    labs(title=element, y=element, x="chemofacies") +
+    theme(
+      plot.title = element_text(size=20, face="bold"),
+      axis.title.x = element_text(size=18),
+      axis.title.y = element_text(size=18),
+      axis.text.x = element_text(size=16),
+      axis.text.y = element_text(size=16),
+      legend.position = "none",
+      panel.background = element_rect(fill="grey90", color=NA),
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_rect(fill="white", color=NA)
+    )
+}
+
+# Call the function with an element
+element_plot <- create_plot("TOC_(wt.%)", facies_colors)
+print(element_plot)
+
+```
+
+
+#for PP
+Because XRF data is more detailed and continuous, I used it as the vertical reference. I interpolated my sparse plug-based data — like TOC and porosity — onto the XRF depth intervals. This ensures all properties are aligned at the same depths, which preserves the geological order of the rock layers and allows me to analyze them consistently down the core.
+
+```{r}
+# Load required libraries
+library(readr)
+library(dplyr)
+
+# Load datasets for PP
+xrf_df_PP <- read_csv("Potage_xrf_PP.csv")
+toc_df_PP <- read_csv("Potage_TOC_PP.csv")
+porosity_df_PP <- read_csv("Potage_Porosity_PP.csv")
+xrd_df_PP <- read_csv("Potage_xrd_PP.csv")
+
+# Rename for consistency
+toc_df_PP <- toc_df_PP %>% rename(Depth = `Depth_(ft)`)
+porosity_df_PP <- porosity_df_PP %>% rename(Depth = Depth_ft)
+xrd_df_PP <- xrd_df_PP %>% rename(Depth = Depth_ft)
+
+# Remove Formation column if present
+xrf_df_PP <- xrf_df_PP[ , !(names(xrf_df_PP) %in% "Formation")]
+toc_df_PP <- toc_df_PP[ , !(names(toc_df_PP) %in% "Formation")]
+xrd_df_PP <- xrd_df_PP[ , !(names(xrd_df_PP) %in% "Formation")]
+
+# Sort all by depth
+xrf_df_PP <- xrf_df_PP %>% arrange(Depth)
+toc_df_PP <- toc_df_PP %>% arrange(Depth)
+porosity_df_PP <- porosity_df_PP %>% arrange(Depth)
+xrd_df_PP <- xrd_df_PP %>% arrange(Depth)
+
+# Interpolate TOC and Porosity to XRF depths
+toc_interp_PP <- approx(toc_df_PP$Depth, toc_df_PP$`TOC_(wt.%)`, xout = xrf_df_PP$Depth, rule = 1)$y
+porosity_interp_PP <- approx(porosity_df_PP$Depth, porosity_df_PP$Total_Porosity, xout = xrf_df_PP$Depth, rule = 1)$y
+
+# Interpolate XRD columns to match XRF depth
+xrd_interp_PP <- data.frame(Depth = xrf_df_PP$Depth)
+for (col in names(xrd_df_PP)) {
+  if (col != "Depth") {
+    xrd_interp_PP[[col]] <- approx(xrd_df_PP$Depth, as.numeric(xrd_df_PP[[col]]), xout = xrf_df_PP$Depth, rule = 1)$y
+  }
+}
+
+# Final merge: keep chemofacies from xrf_df_PP and add interpolated columns
+aligned_df_PP <- xrf_df_PP %>%
+  mutate(`TOC_(wt.%)` = toc_interp_PP,
+         Total_Porosity = porosity_interp_PP) %>%
+  bind_cols(xrd_interp_PP[ , !(names(xrd_interp_PP) %in% "Depth")])
+
+# View result
+head(aligned_df_PP)
+
+# Save to CSV
+write_csv(aligned_df_PP, "Potage_PP_Aligned_XRF_Geochemical_Merged.csv")
+
+```
+
+
+#The following code is prepar the data for ploting
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+# Assume facies_colors are defined somewhere in your script as before
+facies_colors <- c(
+  "1" = "#666666",  # Color for cluster 1
+  "2" = "#7570B3",  # Color for cluster 2
+  "3" = "#1B9E77",  # Color for cluster 3
+  "4" = "#CC9933",  # Color for cluster 4
+  "5" = "#66A61E"   # Color for cluster 5
+)
+
+# Function to create a more visible and presentation-ready plot
+create_plot_PP <- function(element, facies_colors) {
+  ggplot(aligned_df_PP, aes(x=factor(chemofacies), y=get(element), fill=factor(chemofacies))) +
+    geom_boxplot(outlier.color = "red", outlier.shape = 3, color="black") +
+    stat_boxplot(geom = "errorbar", width = 0.25, color = "black") +
+    scale_fill_manual(values=facies_colors) +
+    theme_minimal(base_size = 18) +
+    labs(title=element, y=element, x="chemofacies") +
+    theme(
+      plot.title = element_text(size=20, face="bold"),
+      axis.title.x = element_text(size=18),
+      axis.title.y = element_text(size=18),
+      axis.text.x = element_text(size=16),
+      axis.text.y = element_text(size=16),
+      legend.position = "none",
+      panel.background = element_rect(fill="grey90", color=NA),
+      panel.grid.major.y = element_line(color = "grey80"),
+      panel.grid.minor.y = element_blank(),
+      panel.grid.major.x = element_blank(),
+      plot.background = element_rect(fill="white", color=NA)
+    )
+}
+
+# Call the function with an element
+element_plot <- create_plot_PP("TOC_(wt.%)", facies_colors)
+print(element_plot)
+```
+
